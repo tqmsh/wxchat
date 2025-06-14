@@ -1,5 +1,4 @@
 from typing import Any, Dict, List
-import numpy as np
 
 try:
     from supabase import create_client
