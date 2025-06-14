@@ -1,25 +1,29 @@
 from typing import List
-import asyncio
 
 try:
-    from google.generativeai import embedding
+    import google.generativeai as genai
 except ImportError:  # pragma: no cover - if package not installed
-    embedding = None
+    genai = None
 
 
 class GeminiEmbeddingClient:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = "models/embedding-001"):
         self.api_key = api_key
+        self.model = model
+        if genai is not None:
+            genai.configure(api_key=api_key)
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        if embedding is None:
+        if genai is None:
             raise RuntimeError("google-generativeai not installed")
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: embedding.embed_many(texts, api_key=self.api_key))
+        results: List[List[float]] = []
+        for text in texts:
+            resp = await genai.embed_content_async(self.model, text, task_type="RETRIEVAL_DOCUMENT")
+            results.append(resp["embedding"])
+        return results
 
     async def embed_query(self, text: str) -> List[float]:
-        if embedding is None:
+        if genai is None:
             raise RuntimeError("google-generativeai not installed")
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, lambda: embedding.embed(text, api_key=self.api_key))
-        return result
+        resp = await genai.embed_content_async(self.model, text, task_type="RETRIEVAL_QUERY")
+        return resp["embedding"]

@@ -1,25 +1,20 @@
-import asyncio
-
 try:
-    from google.generativeai import generate_text
+    import google.generativeai as genai
 except ImportError:  # pragma: no cover - if package not installed
-    generate_text = None
+    genai = None
 
 
 class GeminiClient:
     def __init__(self, api_key: str, model: str = "gemini-pro"):
         self.api_key = api_key
-        self.model = model
+        self.model_name = model
+        if genai is not None:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(model)
 
     async def generate(self, question: str, context: str) -> str:
-        if generate_text is None:
+        if genai is None:
             raise RuntimeError("google-generativeai not installed")
         prompt = f"Context:\n{context}\n\nQuestion: {question}\nAnswer:"
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: generate_text(
-                model=self.model, prompt=prompt, api_key=self.api_key
-            ),
-        )
+        response = await self.model.generate_content_async(prompt)
         return response.text
