@@ -5,11 +5,11 @@ except ImportError:  # pragma: no cover - if package not installed
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model: str = "gemini-pro"):
+    def __init__(self, api_key: str, model: str = "gemini-pro", transport: str = "rest"):
         self.api_key = api_key
         self.model_name = model
         if genai is not None:
-            genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key, transport=transport)
             self.model = genai.GenerativeModel(model)
 
     async def generate(self, question: str, context: str) -> str:

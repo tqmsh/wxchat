@@ -7,11 +7,11 @@ except ImportError:  # pragma: no cover - if package not installed
 
 
 class GeminiEmbeddingClient:
-    def __init__(self, api_key: str, model: str = "models/embedding-001"):
+    def __init__(self, api_key: str, model: str = "models/embedding-001", transport: str = "rest"):
         self.api_key = api_key
         self.model = model
         if genai is not None:
-            genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key, transport=transport)
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if genai is None:
