@@ -296,7 +296,12 @@ def enhance_prompt_with_rag_context(original_prompt: str, rag_result: Optional[D
         for i, source in enumerate(sources, 1):
             content = source.get('content', '')
             score = source.get('score', 0)
-            document_context += f"Document {i} (relevance: {score:.3f}):\n{content}\n\n"
+            # Convert score to float if it's a string
+            try:
+                score_float = float(score)
+            except (ValueError, TypeError):
+                score_float = 0.0
+            document_context += f"Document {i} (relevance: {score_float:.3f}):\n{content}\n\n"
     
     # Create enhanced prompt with actual document content
     enhanced_prompt = f"""You have access to relevant information from uploaded documents. Use this context to answer the user's question.

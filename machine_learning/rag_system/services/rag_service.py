@@ -44,17 +44,14 @@ class RAGService:
             table_name="document_embeddings"
         )
         
-        # Create retriever and QA chain
-        self.retriever = self.vector_client.as_retriever(
-            search_type="similarity_score_threshold",
-            search_kwargs={"k": TextProcessingConfig.DEFAULT_RETRIEVAL_K, "score_threshold": TextProcessingConfig.DEFAULT_SCORE_THRESHOLD}
-        )
-        
-        self.qa_chain = RetrievalQA.from_chain_type(
-            llm=self.llm_client.get_llm_client(),
-            retriever=self.retriever,
-            return_source_documents=True
-        )
+        # Create base retriever and QA chain (will be course-filtered when needed)
+        self.base_retriever_config = {
+            "search_type": "similarity_score_threshold",
+            "search_kwargs": {
+                "k": TextProcessingConfig.DEFAULT_RETRIEVAL_K,
+                "score_threshold": TextProcessingConfig.DEFAULT_SCORE_THRESHOLD
+            }
+        }
 
     def process_document(self, course_id: str, content: str, doc_id: str = None) -> Dict[str, Any]:
         """Process and store a document in the vector database."""
@@ -172,27 +169,16 @@ class RAGService:
             }
 
     def answer_question(self, course_id: str, question: str) -> Dict[str, Any]:
-        """Answer a question using RAG."""
+        """Answer a question using RAG with modular components."""
         try:
-            # Get similar documents with scores
-            docs_with_scores = self.vector_client.similarity_search_with_score(
-                question, 
-                k=4,
-                filter={"course_id": course_id}
-            )
+            # Use modular components
+            qa_chain = self.create_course_qa_chain(course_id)
             
-            # Generate answer using QA chain
-            response = self.qa_chain.invoke({"query": question})
+            # Generate answer using modular QA chain
+            response = qa_chain.invoke({"query": question})
             
-            # Format sources
-            sources = []
-            if docs_with_scores:
-                for doc, score in docs_with_scores:
-                    sources.append({
-                        "content": doc.page_content[:200],
-                        "score": score,
-                        "metadata": doc.metadata
-                    })
+            # Format sources from retrieved documents
+            sources = self._format_sources(response.get("source_documents", []))
             
             return {
                 "answer": response["result"],
@@ -201,6 +187,17 @@ class RAGService:
             }
         except Exception as e:
             return {"error": str(e), "success": False}
+    
+    def _format_sources(self, source_documents):
+        """Format source documents for response."""
+        sources = []
+        for doc in source_documents:
+            sources.append({
+                "content": doc.page_content[:200],
+                "score": "Retrieved by QA chain",
+                "metadata": doc.metadata
+            })
+        return sources
 
     def load_file(self, file_path: str) -> List[Document]:
         """Load documents from file."""
@@ -215,3 +212,20 @@ class RAGService:
             raise ValueError(f"Unsupported file type: {path.suffix}")
         
         return loader.load()
+    
+    def create_course_retriever(self, course_id: str):
+        """Create a course-specific retriever with filtering."""
+        config = self.base_retriever_config.copy()
+        config["search_kwargs"]["filter"] = {"course_id": course_id}
+        
+        return self.vector_client.as_retriever(**config)
+    
+    def create_course_qa_chain(self, course_id: str):
+        """Create a course-specific QA chain."""
+        retriever = self.create_course_retriever(course_id)
+        
+        return RetrievalQA.from_chain_type(
+            llm=self.llm_client.get_llm_client(),
+            retriever=retriever,
+            return_source_documents=True
+        )
