@@ -3,6 +3,13 @@
 # Standalone run script for WatAIOliver
 # Handles setup AND running in one script
 
+# Service port configuration
+FRONTEND_PORT=5173
+BACKEND_PORT=8000
+PDF_PROCESSOR_PORT=8001
+RAG_SYSTEM_PORT=8002
+DEFAULT_HOST="0.0.0.0"
+
 echo "Starting WatAIOliver..."
 
 # Kill any existing processes
@@ -100,14 +107,14 @@ cd ..
 # Start Backend API
 echo "Starting backend API..."
 cd backend
-../venv/bin/uvicorn src.main:app --reload --port 8000 --host 0.0.0.0 > ../logs/backend.log 2>&1 &
+../venv/bin/uvicorn src.main:app --reload --port $BACKEND_PORT --host $DEFAULT_HOST > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
 # Start PDF Processor
 echo "Starting PDF processor..."
 cd machine_learning/pdf_processor
-../../venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8001 > ../../logs/pdf_processor.log 2>&1 &
+../../venv/bin/uvicorn main:app --reload --host $DEFAULT_HOST --port $PDF_PROCESSOR_PORT > ../../logs/pdf_processor.log 2>&1 &
 PDF_PROCESSOR_PID=$!
 cd ../..
 
@@ -183,7 +190,7 @@ fi
 # Start RAG System
 echo "Starting RAG system..."
 cd machine_learning/rag_system
-../../venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8002 > ../../logs/rag_system.log 2>&1 &
+../../venv/bin/uvicorn app.main:app --reload --host $DEFAULT_HOST --port $RAG_SYSTEM_PORT > ../../logs/rag_system.log 2>&1 &
 RAG_PID=$!
 cd ../..
 
@@ -199,10 +206,10 @@ trap cleanup EXIT
 
 echo ""
 echo "All services running successfully!"
-echo "Frontend:       http://localhost:5173"
-echo "Backend:        http://localhost:8000"
-echo "PDF Processor:  http://localhost:8001"
-echo "RAG System:     http://localhost:8002"
+echo "Frontend:       http://localhost:$FRONTEND_PORT"
+echo "Backend:        http://localhost:$BACKEND_PORT"
+echo "PDF Processor:  http://localhost:$PDF_PROCESSOR_PORT"
+echo "RAG System:     http://localhost:$RAG_SYSTEM_PORT"
 echo ""
 echo "Logs: tail -f logs/frontend.log"
 echo "Logs: tail -f logs/backend.log"

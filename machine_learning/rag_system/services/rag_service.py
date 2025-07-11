@@ -1,6 +1,12 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+import sys
+import os
+
+# Add the project root to the path so we can import config
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
+from config.constants import ModelConfig, TextProcessingConfig
 
 from langchain_community.document_loaders import TextLoader, PyPDFLoader, Docx2txtLoader
 from langchain.chains import RetrievalQA
@@ -21,14 +27,14 @@ class RAGService:
         # Initialize modular components
         self.embedding_client = GoogleEmbeddingClient(
             google_cloud_project=settings.google_cloud_project,
-            model="gemini-embedding-001",  # Following Google's documentation
-            output_dimensionality=512  # Use 512 dimensions for optimal performance
+            model="gemini-embedding-001",
+            output_dimensionality=ModelConfig.DEFAULT_OUTPUT_DIMENSIONALITY
         )
         
         self.llm_client = GeminiClient(
             api_key=settings.google_api_key,
-            model="gemini-1.5-flash",
-            temperature=0.1
+            model="gemini-2.5-pro",
+            temperature=ModelConfig.DEFAULT_TEMPERATURE
         )
         
         self.vector_client = SupabaseVectorClient(
@@ -41,7 +47,7 @@ class RAGService:
         # Create retriever and QA chain
         self.retriever = self.vector_client.as_retriever(
             search_type="similarity_score_threshold",
-            search_kwargs={"k": 4, "score_threshold": 0.7}
+            search_kwargs={"k": TextProcessingConfig.DEFAULT_RETRIEVAL_K, "score_threshold": TextProcessingConfig.DEFAULT_SCORE_THRESHOLD}
         )
         
         self.qa_chain = RetrievalQA.from_chain_type(
@@ -129,7 +135,7 @@ class RAGService:
                     "total_chunks": len(chunks),
                     "file_identifier": file_identifier,
                     "embedding_model": "gemini-embedding-001",
-                    "vector_dimensions": 512
+                    "vector_dimensions": ModelConfig.DEFAULT_OUTPUT_DIMENSIONALITY
                 })
             
             # Step 4: Write Back - Bulk-write to Supabase PG vector table
