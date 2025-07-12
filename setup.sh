@@ -25,21 +25,14 @@ if command -v python3.12 &> /dev/null; then
     PYTHON_CMD="python3.12"
     PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')
     if [[ "$PYTHON_VERSION" != "3.12.2" ]]; then
-        echo "Python 3.12 is found but not version 3.12.2 (found $PYTHON_VERSION)."
-        echo "Please install Python 3.12.2 specifically."
+        echo "ERROR: Python 3.12.2 is required. Found version $PYTHON_VERSION."
+        echo "Please install Python 3.12.2 or use the manual setup approach in windows_proj_env_setup.md"
         exit 1
     fi
 else
-    echo "Python 3.12.2 not found. Attempting to install using Homebrew..."
-    if command -v brew &> /dev/null; then
-        brew install pyenv
-        pyenv install 3.12.2
-        pyenv shell 3.12.2
-        PYTHON_CMD="$(pyenv which python)"
-    else
-        echo "ERROR: Homebrew not found. Please install Python 3.12.2 manually from https://www.python.org/downloads/release/python-3122/"
-        exit 1
-    fi
+    echo "ERROR: Python 3.12.2 not found."
+    echo "Please install Python 3.12.2 or use the manual setup approach in windows_proj_env_setup.md"
+    exit 1
 fi
 
 echo "Using Python command: $PYTHON_CMD"
@@ -58,10 +51,6 @@ pip install --upgrade pip
 
 # Install all dependencies
 echo "Installing all dependencies..."
-
-# Install root dependencies
-echo "Installing root dependencies..."
-pip install -r requirements.txt
 
 # Install backend dependencies
 echo "Installing backend dependencies..."
@@ -107,14 +96,16 @@ cd ..
 # Start Backend API
 echo "Starting backend API..."
 cd backend
-../venv/bin/uvicorn src.main:app --reload --port $BACKEND_PORT --host $DEFAULT_HOST > ../logs/backend.log 2>&1 &
+source ../venv/bin/activate
+uvicorn src.main:app --reload --port $BACKEND_PORT --host $DEFAULT_HOST > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
 # Start PDF Processor
 echo "Starting PDF processor..."
 cd machine_learning/pdf_processor
-../../venv/bin/uvicorn main:app --reload --host $DEFAULT_HOST --port $PDF_PROCESSOR_PORT > ../../logs/pdf_processor.log 2>&1 &
+source ../../venv/bin/activate
+uvicorn main:app --reload --host $DEFAULT_HOST --port $PDF_PROCESSOR_PORT > ../../logs/pdf_processor.log 2>&1 &
 PDF_PROCESSOR_PID=$!
 cd ../..
 
@@ -190,7 +181,8 @@ fi
 # Start RAG System
 echo "Starting RAG system..."
 cd machine_learning/rag_system
-../../venv/bin/uvicorn app.main:app --reload --host $DEFAULT_HOST --port $RAG_SYSTEM_PORT > ../../logs/rag_system.log 2>&1 &
+source ../../venv/bin/activate
+uvicorn app.main:app --reload --host $DEFAULT_HOST --port $RAG_SYSTEM_PORT > ../../logs/rag_system.log 2>&1 &
 RAG_PID=$!
 cd ../..
 

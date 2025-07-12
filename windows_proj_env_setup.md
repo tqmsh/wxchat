@@ -24,27 +24,21 @@ python -m pip install --upgrade pip
 
 ---
 
-## 2. Install Python Dependencies
+## 2. Install Python Dependencies 
 
-### a. Install root dependencies
-
-```powershell
-pip install -r requirements.txt
-```
-
-### b. Install backend dependencies
+### a. Install backend dependencies
 
 ```powershell
 pip install -r backend/requirements.txt
 ```
 
-### c. Install PDF processor dependencies
+### b. Install PDF processor dependencies
 
 ```powershell
 pip install -r machine_learning/pdf_processor/requirements.txt
 ```
 
-### d. Install RAG system dependencies
+### c. Install RAG system dependencies
 
 ```powershell
 pip install -r machine_learning/rag_system/requirements.txt
