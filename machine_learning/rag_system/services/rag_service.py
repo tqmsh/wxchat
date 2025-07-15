@@ -39,7 +39,7 @@ class RAGService:
         
         self.vector_client = SupabaseVectorClient(
             supabase_url=settings.supabase_url or "",
-            supabase_key=settings.supabase_api_key or "",
+            supabase_service_role_key=settings.supabase_api_key or "",
             embeddings_client=self.embedding_client,
             table_name="document_embeddings"
         )

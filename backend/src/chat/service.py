@@ -270,14 +270,12 @@ async def query_rag_system(conversation_id: str, question: str, course_id: Optio
         else:
             from src.course.CRUD import get_all_courses
             courses = get_all_courses()
-            
             if not courses:
                 print(f"DEBUG: No courses found in database. Cannot query RAG.")
                 return None
                 
-            target_course_id = str(courses[0]['id'])
+            target_course_id = str(courses[0]['course_id'])
             print(f"DEBUG: No course_id provided, using first available course_id='{target_course_id}'")
-        
         async with httpx.AsyncClient(timeout=TimeoutConfig.RAG_QUERY_TIMEOUT) as client:
             rag_payload = {
                 'course_id': target_course_id,
@@ -290,7 +288,7 @@ async def query_rag_system(conversation_id: str, question: str, course_id: Optio
                 f'http://{ServiceConfig.LOCALHOST}:{ServiceConfig.RAG_SYSTEM_PORT}/ask',
                 json=rag_payload
             )
-            
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -347,7 +345,7 @@ async def generate_response(data: ChatRequest) -> str:
         
         try:
             rag_result = await query_rag_system(data.conversation_id or "", data.prompt, data.course_id)
-            
+
             if rag_result and rag_result.get('success'):
                 answer = rag_result.get('answer', 'No answer provided by RAG system.')
                 debug_info = rag_result.get('debug_info', {})
@@ -370,7 +368,7 @@ async def generate_response(data: ChatRequest) -> str:
         # Use qwen with optional RAG enhancement (existing behavior)
         if data.conversation_id:
             rag_result = await query_rag_system(data.conversation_id, data.prompt, data.course_id)
-            
+
             if rag_result and rag_result.get('success'):
                 enhanced_prompt = enhance_prompt_with_rag_context(data.prompt, rag_result)
                 enhanced_data = ChatRequest(
