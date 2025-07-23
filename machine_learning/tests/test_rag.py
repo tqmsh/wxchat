@@ -65,9 +65,14 @@ def test_embedding_client():
         # Create embedding client with gemini model and 512 dimensions
         embedding_client = GoogleEmbeddingClient(
             google_cloud_project=google_cloud_project,
-            model="gemini-embedding-001",
-            output_dimensionality=512
+            model="text-embedding-004",  #  new
+            output_dimensionality=ModelConfig.DEFAULT_OUTPUT_DIMENSIONALITY
         )
+        # embedding_client = GoogleEmbeddingClient(
+        #     google_cloud_project=google_cloud_project,
+        #     model="gemini-embedding-001",  # old
+        #     output_dimensionality=512
+        # )
         
         # Get model info
         model_info = embedding_client.get_model_info()

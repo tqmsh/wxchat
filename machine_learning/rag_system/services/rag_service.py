@@ -8,10 +8,12 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 from config.constants import ModelConfig, TextProcessingConfig
 
+# Import document loaders for different file types
 from langchain_community.document_loaders import TextLoader, PyPDFLoader, Docx2txtLoader
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
 
+# Import application settings and modular service clients
 from app.config import Settings
 from embedding.google_embedding_client import GoogleEmbeddingClient
 from llm_clients.gemini_client import GeminiClient
@@ -19,24 +21,38 @@ from vector_db.supabase_client import SupabaseVectorClient
 
 
 class RAGService:
-    """Orchestrates RAG operations using modular components."""
+    """Orchestrates RAG operations using modular components.
+    
+    Handles document processing, embedding, storage, retrieval, and question-answering.
+    """
     
     def __init__(self, settings: Settings):
+        """
+        Initialize RAGService with application settings and modular clients.
+        Sets up embedding, LLM, and vector database clients.
+        """
         self.settings = settings
         
-        # Initialize modular components
+        # Initialize Google embedding client for document chunking and vectorization
         self.embedding_client = GoogleEmbeddingClient(
             google_cloud_project=settings.google_cloud_project,
-            model="gemini-embedding-001",
+            model="text-embedding-004",  # new
             output_dimensionality=ModelConfig.DEFAULT_OUTPUT_DIMENSIONALITY
         )
+        # self.embedding_client = GoogleEmbeddingClient(
+        #     google_cloud_project=settings.google_cloud_project,
+        #     model="gemini-embedding-001",  # old，commented
+        #     output_dimensionality=ModelConfig.DEFAULT_OUTPUT_DIMENSIONALITY
+        # )
         
+        # Initialize Gemini LLM client for question answering
         self.llm_client = GeminiClient(
             api_key=settings.google_api_key,
             model="gemini-2.5-pro",
             temperature=ModelConfig.DEFAULT_TEMPERATURE
         )
         
+        # Initialize Supabase vector database client for storing and retrieving embeddings
         self.vector_client = SupabaseVectorClient(
             supabase_url=settings.supabase_url or "",
             supabase_service_role_key=settings.supabase_api_key or "",
@@ -53,8 +69,19 @@ class RAGService:
             }
         }
 
-    def process_document(self, course_id: str, content: str, doc_id: Optional[str] = None) -> Dict[str, Any]:
-        """Process and store a document in the vector database."""
+    def process_document(self, course_id: str, content: str, doc_id: str = None) -> Dict[str, Any]:
+        """
+        Process and store a document in the vector database.
+        Splits document, adds metadata, and stores chunks as embeddings.
+        
+        Args:
+            course_id: Identifier for the course the document is associated with
+            content: The raw content of the document to be processed
+            doc_id: Optional pre-defined document ID, if not provided, one will be generated
+            
+        Returns:
+            A dictionary with document processing results, including document ID and chunk count
+        """
         try:
             doc_id = doc_id or f"doc_{hash(content) % 10**10}"
             
@@ -169,8 +196,18 @@ class RAGService:
             }
 
     def answer_question(self, course_id: str, question: str) -> Dict[str, Any]:
+        """
+        Answer a question using RAG with modular components.
+        Retrieves relevant chunks and generates answer using LLM.
         
-        """Answer a question using RAG with detailed debug logging."""
+        Args:
+            course_id: Identifier for the course
+            question: The question text to be answered
+            
+        Returns:
+            A dictionary with the answer, source information, and success status
+        """
+
         try:
             print(f"DEBUG: Starting RAG query for course_id='{course_id}', question='{question[:100]}...'")
             
@@ -241,8 +278,18 @@ class RAGService:
             print(f"DEBUG: Full error traceback: {traceback.format_exc()}")
             return {"error": str(e), "success": False}
     
-    def _format_sources_with_debug(self, source_documents):
-        """Format source documents for response with debug information."""
+
+    def _format_sources(self, source_documents):
+        """
+        Format source documents for response.
+        Truncates content and includes metadata for each source.
+        
+        Args:
+            source_documents: List of source Document objects
+        
+        Returns:
+            A list of formatted source information dictionaries
+        """
         sources = []
         for i, doc in enumerate(source_documents):
             similarity_score = doc.metadata.get('similarity_score', 'N/A') if hasattr(doc, 'metadata') and doc.metadata else 'N/A'
@@ -256,7 +303,16 @@ class RAGService:
         return sources
 
     def load_file(self, file_path: str) -> List[Document]:
-        """Load documents from file."""
+        """
+        Load documents from file using appropriate loader based on file extension.
+        Supports .txt, .pdf, and .docx formats.
+        
+        Args:
+            file_path: The path to the file to be loaded
+        
+        Returns:
+            A list of Document objects loaded from the file
+        """
         path = Path(file_path)
         if path.suffix == '.txt':
             loader = TextLoader(file_path)
@@ -270,14 +326,32 @@ class RAGService:
         return loader.load()
     
     def create_course_retriever(self, course_id: str):
-        """Create a course-specific retriever with filtering."""
+        """
+        Create a course-specific retriever with metadata filtering.
+        Restricts retrieval to documents matching the given course_id.
+        
+        Args:
+            course_id: The ID of the course to filter documents by
+        
+        Returns:
+            A retriever object configured to retrieve documents for the specified course
+        """
         config = self.base_retriever_config.copy()
         config["search_kwargs"]["filter"] = {"course_id": course_id}
         
         return self.vector_client.as_retriever(**config)
     
     def create_course_qa_chain(self, course_id: str):
-        """Create a course-specific QA chain."""
+        """
+        Create a course-specific QA chain using the retriever and LLM client.
+        Enables retrieval-augmented generation for question answering.
+        
+        Args:
+            course_id: The ID of the course to create the QA chain for
+        
+        Returns:
+            A QA chain object configured for the specified course
+        """
         retriever = self.create_course_retriever(course_id)
         
         return RetrievalQA.from_chain_type(
