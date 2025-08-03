@@ -18,6 +18,8 @@ from ai_agents.agents.critic_agent import CriticAgent
 from ai_agents.agents.moderator_agent import ModeratorAgent
 from ai_agents.agents.reporter_agent import ReporterAgent
 from ai_agents.agents.tutor_agent import TutorAgent
+from rag_system.llm_clients.cerebras_client import CerebrasClient
+from rag_system.llm_clients.gemini_client import GeminiClient
 
 
 class MultiAgentOrchestrator:
@@ -64,7 +66,6 @@ class MultiAgentOrchestrator:
         
         self.logger.info("Multi-Agent System Orchestrator initialized")
         self.logger.info(f"Config: max_rounds={self.config.max_debate_rounds}, retrieval_k={self.config.retrieval_k}")
-        
     def _setup_agents(self):
         """Initialize all agents directly"""
         
@@ -107,39 +108,93 @@ class MultiAgentOrchestrator:
         )
         
         self.logger.info(f"Initialized 6 agents (Retrieve, Strategist, Critic, Moderator, Reporter, Tutor)")
+
+    def _create_llm_client(self, model_name: str):
+        """Create an LLM client based on model name."""
+        try:
+            if model_name.startswith("gemini"):
+                return GeminiClient(
+                    api_key=self.rag_service.settings.google_api_key,
+                    model=model_name,
+                    temperature=0.6,
+                )
+            if model_name.startswith("qwen") or model_name.startswith("cerebras"):
+                return CerebrasClient(
+                    api_key=self.rag_service.settings.cerebras_api_key,
+                    model=model_name,
+                )
+        except Exception as e:
+            self.logger.error(f"Failed to create llm client for {model_name}: {e}")
+        return None
     
     def _log_agent_conversation(self, agent_name: str, input_data: Any, output_data: Any, stage: str = ""):
-        """Log agent input/output as conversation history"""
+        """Log agent conversation in detailed chat-group format"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         
-        # Format input preview
+        # Enhanced input formatting
         if hasattr(input_data, 'query'):
-            input_preview = f"Query: '{input_data.query[:60]}...'"
+            query_preview = input_data.query[:100] + "..." if len(input_data.query) > 100 else input_data.query
+            input_preview = f"'{query_preview}'"
         elif isinstance(input_data, dict):
-            input_preview = f"Data: {str(input_data)[:60]}..."
+            input_preview = f"Data: {str(input_data)[:80]}..."
         else:
-            input_preview = f"Input: {str(input_data)[:60]}..."
+            input_preview = f"Input: {str(input_data)[:80]}..."
         
-        # Format output preview
+        # Enhanced output formatting with detailed content
         if hasattr(output_data, 'content') and output_data.content:
             if 'draft_content' in output_data.content:
-                output_preview = f"Draft: {output_data.content['draft_content'][:60]}..."
+                draft = output_data.content['draft_content']
+                draft_preview = draft[:300] + "..." if len(draft) > 300 else draft
+                output_preview = f"Generated draft ({len(draft)} chars):\n{draft_preview}"
+                
             elif 'critiques' in output_data.content:
-                critiques = output_data.content['critiques']
-                if critiques is None:
-                    self.logger.warning(f"Critiques is None in {agent_name} output")
-                    critique_count = 0
+                critiques = output_data.content['critiques'] or []
+                if critiques:
+                    critique_details = []
+                    for i, critique in enumerate(critiques[:2], 1):
+                        issue = critique.get('issue', 'Unknown issue')[:80]
+                        critique_details.append(f"  • {issue}")
+                    critique_text = "\n".join(critique_details)
+                    if len(critiques) > 2:
+                        critique_text += f"\n  • (+{len(critiques)-2} more issues)"
+                    output_preview = f"Found {len(critiques)} issues:\n{critique_text}"
                 else:
-                    critique_count = len(critiques)
-                output_preview = f"Found {critique_count} issues"
+                    output_preview = "No issues found - draft approved!"
+                    
             elif 'decision' in output_data.content:
-                output_preview = f"Decision: {output_data.content['decision']}"
+                decision = output_data.content['decision']
+                reasoning = output_data.content.get('reasoning', '')
+                reasoning_preview = reasoning[:120] + "..." if len(reasoning) > 120 else reasoning
+                output_preview = f"Decision: {decision}\n  Reasoning: {reasoning_preview}"
+                
             elif 'final_answer' in output_data.content:
-                output_preview = f"Answer: {str(output_data.content['final_answer'])[:60]}..."
+                answer = str(output_data.content['final_answer'])
+                if isinstance(output_data.content['final_answer'], dict):
+                    # Extract key parts of structured answer
+                    intro = output_data.content['final_answer'].get('introduction', '')[:100]
+                    solution = output_data.content['final_answer'].get('step_by_step_solution', '')[:200]
+                    answer_preview = f"Introduction: {intro}...\nSolution: {solution}..."
+                else:
+                    answer_preview = answer[:300] + "..." if len(answer) > 300 else answer
+                output_preview = f"Final answer:\n{answer_preview}"
+                
+            elif 'retrieval_results' in output_data.content:
+                results = output_data.content['retrieval_results']
+                quality = output_data.content.get('quality_assessment', {}).get('score', 0)
+                output_preview = f"Retrieved {len(results)} chunks (quality: {quality:.3f})"
+                if results:
+                    for i, result in enumerate(results[:2], 1):
+                        content = result.get('content', '')[:60]
+                        score = result.get('score', 'N/A')
+                        output_preview += f"\n  • Chunk {i}: {content}... (score: {score})"
+                    if len(results) > 2:
+                        output_preview += f"\n  • (+{len(results)-2} more chunks)"
+                        
             else:
-                output_preview = f"Output: {str(output_data.content)[:60]}..."
+                content_str = str(output_data.content)
+                output_preview = content_str[:200] + "..." if len(content_str) > 200 else content_str
         else:
-            output_preview = f"Output: {str(output_data)[:60]}..."
+            output_preview = str(output_data)[:200] + "..." if len(str(output_data)) > 200 else str(output_data)
         
         # Add to conversation history
         conversation_entry = {
@@ -155,10 +210,18 @@ class MultiAgentOrchestrator:
             self.conversation_history = []
         self.conversation_history.append(conversation_entry)
         
-        # Display as chat-like conversation
-        status = "" if conversation_entry["success"] else ""
-        self.logger.info(f"[{timestamp}] {agent_name}: {input_preview}")
-        self.logger.info(f"   {status} {output_preview}")
+        # Display as chat group conversation
+        status_icon = "SUCCESS" if conversation_entry["success"] else "ERROR"
+        stage_info = f" [{stage}]" if stage else ""
+        
+        self.logger.info(f"")
+        self.logger.info(f"=== {agent_name.upper()}{stage_info} @ {timestamp} ===")
+        self.logger.info(f"INPUT: {input_preview}")
+        self.logger.info(f"OUTPUT [{status_icon}]: {output_preview}")
+        
+        # Add processing time if available
+        if hasattr(output_data, 'processing_time') and output_data.processing_time > 0:
+            self.logger.info(f"PROCESSING TIME: {output_data.processing_time:.2f}s")
     
     def _display_conversation_summary(self):
         """Display the full agent conversation like a chat history"""
@@ -181,11 +244,12 @@ class MultiAgentOrchestrator:
         self.logger.info("=" * 80)
     
     async def process_query(
-        self, 
-        query: str, 
-        course_id: str, 
+        self,
+        query: str,
+        course_id: str,
         session_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        heavy_model: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process a user query through the complete speculative AI workflow
@@ -202,15 +266,28 @@ class MultiAgentOrchestrator:
         
         start_time = datetime.now()
         self.execution_stats["total_queries"] += 1
-        
+
         # Clear conversation history for new query
         self.conversation_history = []
-        
+
+        heavy_llm = None
+        original_strategist_llm = None
+        original_critic_llm = None
+
+        if heavy_model:
+            heavy_llm = self._create_llm_client(heavy_model)
+            if heavy_llm:
+                original_strategist_llm = self.strategist_agent.llm_client
+                original_critic_llm = self.critic_agent.llm_client
+                self.strategist_agent.llm_client = heavy_llm
+                self.critic_agent.llm_client = heavy_llm
+
         try:
             self.logger.info(f"QUERY: '{query[:80]}...' | Course: {course_id[:8]}...")
             
             # Stage 1: Enhanced Retrieval
-            self.logger.info("RETRIEVAL STAGE")
+            self.logger.info("")
+            self.logger.info("=== RETRIEVAL STAGE ===")
             retrieval_result = await self._execute_retrieval(query, course_id, session_id, metadata)
             
             if not retrieval_result.success:
@@ -220,14 +297,16 @@ class MultiAgentOrchestrator:
             self.logger.info(f"   Retrieved {len(context)} context chunks")
 
             # Stage 2: Debate Loop
-            self.logger.info("DEBATE STAGE")
+            self.logger.info("")
+            self.logger.info("️  === DEBATE STAGE ===")
             debate_result = await self._execute_debate_loop(query, context, session_id, metadata)
             
             if not debate_result["success"]:
                 return self._create_error_response("Debate loop failed", debate_result.get("error"))
 
             # Stage 3: Final Synthesis
-            self.logger.info("SYNTHESIS STAGE")
+            self.logger.info("")
+            self.logger.info("=== SYNTHESIS STAGE ===")
             final_result = await self._execute_final_synthesis(
                 query, context, debate_result["result"], session_id, metadata
             )
@@ -236,7 +315,8 @@ class MultiAgentOrchestrator:
                 return self._create_error_response("Final synthesis failed", final_result.error_message)
 
             # Stage 4: Tutor Interaction
-            self.logger.info("TUTOR STAGE")
+            self.logger.info("")
+            self.logger.info("=== TUTOR STAGE ===")
             tutor_result = await self._execute_tutor_interaction(
                 query, final_result.content["final_answer"], session_id, metadata
             )
@@ -269,10 +349,16 @@ class MultiAgentOrchestrator:
             self.logger.info(f"Query completed successfully in {processing_time:.2f}s")
             
             return response
-            
+
         except Exception as e:
             self.logger.error(f"Query processing failed: {str(e)}")
             return self._create_error_response("System error", str(e))
+        finally:
+            if heavy_llm:
+                if original_strategist_llm:
+                    self.strategist_agent.llm_client = original_strategist_llm
+                if original_critic_llm:
+                    self.critic_agent.llm_client = original_critic_llm
     
     async def _execute_retrieval(
         self, 
@@ -315,7 +401,10 @@ class MultiAgentOrchestrator:
     ) -> Dict[str, Any]:
         """Execute the complete debate loop with iteration control"""
         
-        self.logger.info(f"[DEBATE LOOP] Starting debate with {len(context)} context items")
+        self.logger.info(f"")
+        self.logger.info(f"[DEBATE LOOP] Starting multi-agent debate")
+        self.logger.info(f"   Context items: {len(context)}")
+        self.logger.info(f"   Max rounds: {self.config.max_debate_rounds}")
         
         try:
             current_round = 1
@@ -331,12 +420,12 @@ class MultiAgentOrchestrator:
                 self.logger.error("[DEBATE LOOP] Required debate agents not available!")
                 raise Exception("Required debate agents not available")
             
-            self.logger.info(f"[DEBATE LOOP] Max rounds configured: {self.config.max_debate_rounds}")
-            
             while current_round <= self.config.max_debate_rounds:
-                self.logger.info(f"   Round {current_round}/{self.config.max_debate_rounds}")
+                self.logger.info(f"")
+                self.logger.info(f"=== ROUND {current_round}/{self.config.max_debate_rounds} ===")
                 
                 # Stage 1: Strategist generates draft and CoT
+                self.logger.info(f"STRATEGIST: Analyzing query and generating draft...")
                 strategist_input = AgentInput(
                     query=query,
                     context=context,
@@ -359,10 +448,9 @@ class MultiAgentOrchestrator:
                 current_draft = strategist_result.content["draft_content"]
                 current_cot = strategist_result.content["chain_of_thought"]
                 draft_id = strategist_result.content["draft_id"]
-                
-                self.logger.info(f"   Strategist: {len(current_draft)} chars draft")
 
                 # Step 2: Critic analyzes draft
+                self.logger.info(f"CRITIC: Evaluating draft for issues...")
                 critic_input = AgentInput(
                     query=query,
                     context=context,
@@ -386,10 +474,9 @@ class MultiAgentOrchestrator:
                 
                 critiques = critic_result.content["critiques"]
                 overall_assessment = critic_result.content["overall_assessment"]
-                
-                self.logger.info(f"   Critic: {len(critiques)} issues found")
 
                 # Step 3: Moderator decides next action
+                self.logger.info(f"MODERATOR: Making decision on draft quality...")
                 moderator_input = AgentInput(
                     query=query,
                     context=context,
@@ -414,7 +501,6 @@ class MultiAgentOrchestrator:
                     return {"success": False, "error": f"Moderator failed in round {current_round}"}
                 
                 decision = moderator_result.content["decision"]
-                self.logger.info(f"   Moderator: {decision}")
                 
                 if decision not in ["converged", "iterate", "abort_deadlock"]:
                     self.logger.warning(f"Unknown decision: {decision}")

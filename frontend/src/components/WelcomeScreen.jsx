@@ -6,13 +6,24 @@ import { MessageInput } from "@/components/ui/message-input"
 import { transcribeAudio } from "@/lib/utils/audio"
 
 export function WelcomeScreen({ 
-  selectedModel, 
-  setSelectedModel, 
-  modelOptions, 
+  selectedModel,
+  setSelectedModel,
+  modelOptions,
+  selectedBaseModel,
+  setSelectedBaseModel,
+  baseModelOptions,
+  selectedRagModel,
+  setSelectedRagModel,
+  ragModelOptions,
+  selectedHeavyModel,
+  setSelectedHeavyModel,
+  heavyModelOptions,
   selectedCourseId,
   setSelectedCourseId,
-  append, 
-  handleSubmit, 
+  useAgents,
+  setUseAgents,
+  append,
+  handleSubmit,
   input, 
   handleInputChange, 
   isLoading, 
@@ -28,20 +39,60 @@ export function WelcomeScreen({
         <p className="text-gray-600">
           Ask me anything about your course!
         </p>
-        <div className="mt-4 flex flex-col items-center space-y-3">
-          <CustomSelect
-            value={selectedModel}
-            onChange={setSelectedModel}
-            options={modelOptions}
-            placeholder="Select a model"
-            className="w-48"
-          />
-          {selectedModel === "rag" && (
-            <CourseSelector
-              value={selectedCourseId}
-              onChange={setSelectedCourseId}
-              className="w-64"
+        <div className="mt-4 flex flex-col items-center space-y-4">
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
+            <CustomSelect
+              value={selectedModel}
+              onChange={setSelectedModel}
+              options={modelOptions}
+              placeholder="Select mode"
             />
+          </div>
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Foundation Model</label>
+            <CustomSelect
+              value={selectedBaseModel}
+              onChange={setSelectedBaseModel}
+              options={baseModelOptions}
+              placeholder="Foundation model"
+            />
+          </div>
+          {selectedModel === "rag" && (
+            <>
+              <div className="w-48">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Embedding Model</label>
+                <CustomSelect
+                  value={selectedRagModel}
+                  onChange={setSelectedRagModel}
+                  options={ragModelOptions}
+                  placeholder="Embedding model"
+                />
+              </div>
+              <div className="w-48">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Heavy Reasoning Model</label>
+                <CustomSelect
+                  value={selectedHeavyModel}
+                  onChange={setSelectedHeavyModel}
+                  options={heavyModelOptions}
+                  placeholder="Heavy reasoning model"
+                />
+              </div>
+              <CourseSelector
+                value={selectedCourseId}
+                onChange={setSelectedCourseId}
+                className="w-64"
+              />
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 text-blue-600"
+                  checked={useAgents}
+                  onChange={(e) => setUseAgents(e.target.checked)}
+                />
+                <span className="text-sm text-gray-700">Enable multi-agent debate</span>
+              </label>
+            </>
           )}
         </div>
       </div>

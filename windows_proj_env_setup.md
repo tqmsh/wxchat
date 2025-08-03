@@ -1,3 +1,21 @@
+
+
+
+# For Windows user on x86_64, please go and download WSL2 and use ./setup.sh
+
+# If you are currently using a arm64 or x86_32 only cpu other than Apple Silicon on MacOS, please manage your own way to do this development.
+
+
+
+
+
+
+
+
+---
+The content below is not recommended and is no longer being maintained. 
+
+
 # WatAIOliver Project: Manual Setup Guide (Windows, VS Code)
 
 This guide outlines the steps to set up and run the WatAIOliver project on Windows (VS Code environment).
@@ -43,7 +61,13 @@ pip install -r machine_learning/pdf_processor/requirements.txt
 ### c. Install RAG system dependencies
 
 ```powershell
-pip install -r machine_learning/rag_system/requirements.txt
+pip install -r machine_learning/rag_system/requirements.txt -c constraints.txt --upgrade --upgrade-strategy eager
+```
+
+### d. Install Agent system dependencies
+
+```powershell
+pip install -r machine_learning/ai_agents/requirements.txt
 ```
 
 > Note: If there are package conflicts, resolve them manually by installing the correct versions as shown by pip error messages.
@@ -101,6 +125,13 @@ cd <Path to project root>\machine_learning\rag_system
 & "<Path to project root>\venv\Scripts\python.exe" -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
 ```
 
+### e. Tab 5: Agent System
+
+```powershell
+cd <Path to project root>\machine_learning\ai_agents
+& "<Path to project root>\venv\Scripts\python.exe" -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8003
+```
+
 ---
 
 ## Tips:
@@ -121,6 +152,3 @@ cd <Path to project root>\machine_learning\rag_system
 .\venv\Scripts\activate
 ```
 
-You're done! Your entire project should now run successfully.
-
----

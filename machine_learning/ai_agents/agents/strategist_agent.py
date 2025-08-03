@@ -41,6 +41,7 @@ class StrategistAgent(BaseAgent):
         - Be creative and explore multiple solution paths when appropriate
         - Focus on educational value and clarity
         - Don't aim for perfection - this is a draft for further refinement
+        - Take a moment to reflect deeply before responding
 
         Your output should be structured and detailed, suitable for critical review.
         """
