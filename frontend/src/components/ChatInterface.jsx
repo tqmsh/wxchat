@@ -5,6 +5,8 @@ import { CourseSelector } from "@/components/ui/course-selector"
 import { ChatFileAttachment } from "@/components/ui/chat-file-attachment"
 import { transcribeAudio } from "@/lib/utils/audio"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
 
 export function ChatInterface({ 
   selectedConversation,
@@ -33,13 +35,30 @@ export function ChatInterface({
   stop,
   messagesContainerRef
 }) {
+  const navigate = useNavigate()
+  
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    localStorage.removeItem('access_token')
+    navigate('/login')
+  }
   return (
     <>
       <div className="px-6 py-4 flex-shrink-0">
         <div className="flex flex-col items-start">
-          <h1 className="text-xl font-semibold text-gray-900">
-            {selectedConversation ? selectedConversation.title : 'Oliver Chat'}
-          </h1>
+          <div className="flex justify-between items-center w-full mb-2">
+            <h1 className="text-xl font-semibold text-gray-900">
+              {selectedConversation ? selectedConversation.title : 'Oliver Chat'}
+            </h1>
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              Logout
+            </Button>
+          </div>
           <div className="mt-2 space-y-3">
             <CustomSelect
               value={selectedModel}
@@ -71,11 +90,12 @@ export function ChatInterface({
                   placeholder="Heavy reasoning model"
                   className="w-48"
                 />
-                <CourseSelector
-                  value={selectedCourseId}
-                  onChange={setSelectedCourseId}
-                  className="w-64"
-                />
+                {selectedCourseId && (
+                  <div className="w-64 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Course</label>
+                    <p className="text-sm text-blue-700 font-medium">{selectedCourseId}</p>
+                  </div>
+                )}
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
