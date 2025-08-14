@@ -3,13 +3,14 @@ import uuid
 from typing import Optional
 
 # CREATE
-def create_course(created_by, title, description=None, term=None, invite_code: Optional[str] = None):
+def create_course(created_by, title, description=None, term=None, prompt=None, invite_code: Optional[str] = None):
     data = {
         "course_id": str(uuid.uuid4()),
         "title": title,
         "description": description,
         "term": term,
         "created_by": created_by,
+        "prompt": prompt,
     }
     if invite_code is not None:
         data["invite_code"] = invite_code
@@ -36,9 +37,6 @@ def get_course_by_invite_code(invite_code: str):
     response = supabase.table("courses").select("*").eq("invite_code", invite_code).execute()
     return response.data[0] if response.data else None
 
-# Alias functions for compatibility
-get_courses_by_user = get_courses
-
 def search_courses(created_by, search_term):
     response = supabase.table("courses").select("*").eq("created_by", created_by).ilike("title", f"%{search_term}%").execute()
     return response.data
@@ -56,3 +54,9 @@ def update_course(course_id, **kwargs):
 def delete_course(course_id):
     response = supabase.table("courses").delete().eq("course_id", course_id).execute()
     return response.data
+
+def find_course_by_title_ilike(title: str):
+    resp = supabase.table("courses").select("*").ilike("title", f"%{title}%").execute()
+    if resp.data:
+        return resp.data[0]
+    return None

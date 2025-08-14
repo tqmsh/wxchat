@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from .models import MessageCreate, MessageUpdate, MessageResponse
 from .service import (
     create_message_service, get_messages_service, get_message_service,
-    update_message_service, delete_message_service
+    update_message_service, delete_message_service, get_course_analytics_service
 )
 from typing import List
 
@@ -42,3 +42,9 @@ async def delete_message_api(message_id: str):
     if data:
         return {"detail": "Message deleted"}
     raise HTTPException(status_code=404, detail="Message not found")
+
+
+@router.get("/analytics/course/{course_id}")
+async def get_course_analytics(course_id: str):
+    return await get_course_analytics_service(course_id)
+
