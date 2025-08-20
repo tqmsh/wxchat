@@ -2,8 +2,9 @@ import requests
 import requests.exceptions
 import tempfile
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, AsyncGenerator
 from fastapi import UploadFile
+import json
 
 from ..logger import logger
 from .models import (
@@ -16,6 +17,7 @@ from .models import (
 )
 from .CRUD import get_messages
 import httpx
+from starlette.responses import StreamingResponse
 
 from backend.constants import TimeoutConfig, ServiceConfig
 from machine_learning.constants import ModelConfig
@@ -124,7 +126,7 @@ def nebula_text_endpoint(data: ChatRequest) -> str:
         logger.error(f"Request failed: {e}")
         return f"Error communicating with model: {str(e)}"
 
-def llm_text_endpoint(data: ChatRequest) -> str:
+async def llm_text_endpoint(data: ChatRequest) -> StreamingResponse:
     """Generate a response using a specified LLM client."""
 
     conversation_context = ""
@@ -164,12 +166,37 @@ def llm_text_endpoint(data: ChatRequest) -> str:
             return f"Custom model '{model_name}' not found or API key not available for this course."
     
     try:
+        async def format_stream_for_sse(stream_generator):
+            """
+            Convert LLM streaming responses to Server-Sent Events format.
+            
+            Ensures consistent JSON-encoded chunks and proper error handling.
+            """
+            full_response = ""
+            try:
+                async for chunk in stream_generator:
+                    if chunk:
+                        full_response += chunk
+                        # JSON-encode prevents client-side parsing issues with quotes/newlines
+                        json_chunk = json.dumps({"content": chunk})
+                        yield f"data: {json_chunk}\n\n"
+            except Exception as e:
+                # Error recovery: send error as properly formatted SSE
+                logger.error(f"Streaming error: {e}")
+                error_chunk = json.dumps({"content": f"[Streaming Error: {str(e)}]"})
+                yield f"data: {error_chunk}\n\n"
+            finally:
+                # Debug output for monitoring response quality
+                logger.debug(f"LLM Response completed: {len(full_response)} chars")
+            
+
         if model_name.startswith("gemini"):
             client = GeminiClient(
                 api_key=settings.google_api_key,
                 model=model_name,
                 temperature=ModelConfig.DEFAULT_TEMPERATURE,
             )
+            return StreamingResponse(format_stream_for_sse(client.generate_stream(full_prompt)), media_type="text/event-stream")
         elif model_name.startswith("gpt") or (model_name.startswith("custom-") and custom_api_key):
             # Use custom API key if available, otherwise use default
             api_key = custom_api_key if custom_api_key else settings.openai_api_key
@@ -181,6 +208,7 @@ def llm_text_endpoint(data: ChatRequest) -> str:
                 temperature=0.6,
                 top_p=0.95,
             )
+            return StreamingResponse(format_stream_for_sse(client.generate_stream(full_prompt)), media_type="text/event-stream")
         elif model_name.startswith("claude"):
             client = AnthropicClient(
                 api_key=settings.anthropic_api_key,
@@ -188,6 +216,7 @@ def llm_text_endpoint(data: ChatRequest) -> str:
                 temperature=0.6,
                 top_p=0.95,
             )
+            return StreamingResponse(format_stream_for_sse(client.generate_stream(full_prompt)), media_type="text/event-stream")
         elif model_name.startswith("qwen") or model_name.startswith("cerebras"):
             client = CerebrasClient(
                 api_key=settings.cerebras_api_key,
@@ -195,13 +224,14 @@ def llm_text_endpoint(data: ChatRequest) -> str:
                 temperature=0.6,
                 top_p=0.95,
             )
+            return StreamingResponse(format_stream_for_sse(client.generate_stream(full_prompt)), media_type="text/event-stream")
         else:
             client = GeminiClient(
                 api_key=settings.google_api_key,
                 model=model_name,
                 temperature=ModelConfig.DEFAULT_TEMPERATURE,
             )
-        return client.generate(full_prompt)
+            return StreamingResponse(format_stream_for_sse(client.generate_stream(full_prompt)), media_type="text/event-stream")
     except Exception as e:
         logger.error(f"LLM generation failed: {e}")
         return f"Error communicating with model: {str(e)}"
@@ -295,27 +325,68 @@ def enhance_prompt_with_rag_context(original_prompt: str, rag_result: Optional[D
             document_context += f"Document {i} (relevance: {score_float:.3f}):\n{content}\n\n"
     
     # Create enhanced prompt with actual document content
-    enhanced_prompt = f"""You have access to relevant information from uploaded documents. Use this context to answer the user's question.
+    enhanced_prompt = f"""You are an educational assistant helping students understand course materials. You have access to relevant information from course documents.
 
+RETRIEVED CONTEXT:
 {document_context}
 
-User question: {original_prompt}
+USER QUESTION: {original_prompt}
 
-Please provide a comprehensive answer based on the document content above. Reference specific information from the documents when relevant."""
+RENDERING SYSTEM: You are outputting to a Markdown renderer with KaTeX math support. DO NOT use Mermaid diagrams, HTML, or other unsupported formats.
+
+SUPPORTED FORMATS:
+✅ LaTeX math: $f(x) = x^2$ and $$f(x) = x^2$$
+✅ Regular markdown: **bold**, *italic*, lists, headers
+✅ Code blocks: ```python ... ```
+
+❌ NOT SUPPORTED: Mermaid diagrams, HTML tags, custom graphics
+
+EXAMPLES - FIX THESE EXACT PROBLEMS:
+❌ "f(x) = x^" → ✅ "$f(x) = x^2$" (complete the broken formula)
+❌ Lone "π" on separate line → ✅ "The $\pi$-periodic extension"
+❌ "[-π, π]" → ✅ "$[-\pi, \pi]$" (use LaTeX)
+❌ "x = ±π, ±π" → ✅ "$x = \pm\pi, \pm 2\pi$" (fix repetition)
+
+GOOD OUTPUT EXAMPLES:
+✅ "The lesson covered the Fourier series of the $\pi$-periodic extension of $f(x) = x^2$."
+✅ "Key intervals: $[-\pi, \pi]$ and $[0, 2\pi]$"
+
+CRITICAL LaTeX RULES:
+✅ Always use backslash: $\pi$ NOT $π$ 
+✅ Intervals: $[\pi, 3\pi]$ NOT $[π, 3π]$
+✅ Plus-minus: $\pm\pi$ NOT $±π$
+
+COMMON MISTAKES TO AVOID:
+❌ "$π$" or "$[π, 3π]$" (literal Greek letters cause red errors)
+❌ "$ \pi $" (spaces inside math delimiters)  
+❌ "$\\pi$" (double backslashes in output)
+✅ "$\pi$" (single backslash, no spaces)
+✅ "$[\pi, 3\pi]$" (proper LaTeX syntax)
+
+TASK: Transform the retrieved content into clean markdown with proper LaTeX math formatting. NO diagrams, NO Mermaid, NO HTML."""
+    
+    print("=== DEBUG RAG PROMPT ===")
+    print("ORIGINAL PROMPT:", original_prompt)
+    print("ENHANCED PROMPT:", enhanced_prompt[-500:])  # Last 500 chars to see instructions
+    print("======================")
     
     return enhanced_prompt
 
-async def generate_standard_rag_response(data: ChatRequest) -> str:
+async def generate_standard_rag_response(data: ChatRequest) -> StreamingResponse:
     """Generate a response using RAG with course-specific prompt."""
     if not data.course_id:
-        return "RAG model requires a course selection to access the knowledge base."
+        async def error_generator():
+            yield b"RAG model requires a course selection to access the knowledge base."
+        return StreamingResponse(error_generator(), media_type="text/plain")
     
     try:
         from src.course.CRUD import get_course
         course = get_course(data.course_id)
         
         if not course:
-            return "Course not found. Please select a valid course."
+            async def error_generator():
+                yield b"Course not found. Please select a valid course."
+            return StreamingResponse(error_generator(), media_type="text/plain")
         
         # Query RAG system for relevant context
         rag_result = await query_rag_system(
@@ -336,54 +407,141 @@ async def generate_standard_rag_response(data: ChatRequest) -> str:
             prompt=f"System: {system_prompt}\n\n{enhanced_prompt}",
             conversation_id=data.conversation_id,
             file_context=data.file_context,
-            model=data.model,
+            model=data.model or "qwen-3-235b-a22b-instruct-2507",
             course_id=data.course_id
         )
         
-        return llm_text_endpoint(modified_data)
+        return await llm_text_endpoint(modified_data)
         
     except Exception as e:
-        return f"Error generating standard response: {str(e)}"
+        async def error_generator():
+            yield f"Error generating standard response: {str(e)}".encode('utf-8')
+        return StreamingResponse(error_generator(), media_type="text/plain")
 
-async def generate_response(data: ChatRequest) -> str:
+async def generate_response(data: ChatRequest) -> StreamingResponse:
     """Generate response using daily (RAG) or rag (Multi-agent) systems"""
     
     mode = data.mode or "daily"
+    print(f"\n=== GENERATE_RESPONSE CALLED ===")
+    print(f"Mode: {mode}")
+    print(f"Course ID: {data.course_id}")
+    print(f"Prompt: {data.prompt[:100]}")  # First 100 chars
     
-    if mode == "daily":
-        return await generate_standard_rag_response(data)
-    
-    elif mode == "rag":
-        if not data.course_id:
-            return "Agent System requires a course selection to identify the knowledge base."
-
-        try:
-            # Get course prompt for agents system
-            from src.course.CRUD import get_course
-            course = get_course(data.course_id)
-            course_prompt = course.get('prompt') if course else None
-            
-            result = await query_agents_system(
-                data.conversation_id or "",
-                data.prompt,
-                data.course_id,
-                data.rag_model,
-                data.heavy_model,
-                data.model,
-                course_prompt,
-            )
-
-            if result and result.get('success'):
-                return _format_agents_response_with_debug(result)
-            else:
-                error_msg = result.get('error', {}).get('message', "An unexpected error occurred.")
-                return f"The Agent System encountered an error while processing your request.\n\nDetails: {error_msg}"
+    async def generate_chunks():
+        if mode == "daily":
+            streaming_response = await generate_standard_rag_response(data)
+            async for chunk in streaming_response.body_iterator:
+                yield chunk
         
-        except Exception as e:
-            return f"The Agent System is currently unavailable. Please try again later.\n\nTechnical details: {str(e)}"
-    
-    else:
-        return f"Unknown mode '{mode}'. Please select 'daily' for Daily mode or 'rag' for Problem Solving mode."
+        elif mode == "rag":
+            if not data.course_id:
+                # Send error as content chunk like daily mode
+                error_msg = "Agent System requires a course selection to identify the knowledge base."
+                yield f"data: {json.dumps({'content': error_msg})}\n\n".encode('utf-8')
+                return
+
+            try:
+                # Get course prompt for agents system
+                from src.course.CRUD import get_course
+                course = get_course(data.course_id)
+                course_prompt = course.get('prompt') if course else None
+                
+                # Collect the full response from agents system
+                full_response = ""
+                print("\n=== AGENT SYSTEM START ===")
+                chunk_count = 0
+                async for chunk in query_agents_system(
+                    data.conversation_id or "",
+                    data.prompt,
+                    data.course_id,
+                    data.rag_model,
+                    data.heavy_model,
+                    data.model,
+                    course_prompt,
+                ):
+                    chunk_count += 1
+                    print(f"=== AGENT CHUNK {chunk_count} RECEIVED ===")
+                    print(f"Chunk type: {chunk.get('status', 'unknown')}")
+                    print(f"Chunk keys: {chunk.keys()}")
+                    print(f"Raw chunk: {str(chunk)[:200]}")
+                    
+                    # If it's an error, yield and stop
+                    if not chunk.get('success', True):
+                        error_msg = chunk.get('error', {}).get('message', "An unexpected error occurred.")
+                        print(f"ERROR: {error_msg}")
+                        yield f"data: {json.dumps({'content': f'Error: {error_msg}'})}\n\n".encode('utf-8')
+                        return
+                    
+                    # Handle the agent response format (no status field, just success + answer)
+                    if chunk.get('success') and chunk.get('answer'):
+                        print("=== SUCCESSFUL AGENT RESPONSE RECEIVED ===")
+                        answer = chunk.get('answer', {})
+                        print(f"Answer keys: {answer.keys() if answer else 'No answer'}")
+                        
+                        # Build the full response text
+                        content_parts = []
+                        if answer.get('introduction'):
+                            content_parts.append(answer['introduction'])
+                            print(f"Added introduction: {len(answer['introduction'])} chars")
+                        if answer.get('step_by_step_solution'):
+                            content_parts.append('\n\n' + answer['step_by_step_solution'])
+                            print(f"Added solution: {len(answer['step_by_step_solution'])} chars")
+                        if answer.get('key_takeaways'):
+                            content_parts.append('\n\n## Key Takeaways\n' + answer['key_takeaways'])
+                            print(f"Added takeaways: {len(answer['key_takeaways'])} chars")
+                        if answer.get('important_notes'):
+                            content_parts.append('\n\n## Important Notes\n' + answer['important_notes'])
+                            print(f"Added notes: {len(answer['important_notes'])} chars")
+                        
+                        full_response = ''.join(content_parts)
+                        print(f"=== FULL RESPONSE COLLECTED: {len(full_response)} chars ===")
+                        print(f"First 200 chars: {full_response[:200]}")
+                        break
+                    elif chunk.get('status') == 'in_progress':
+                        # Just log progress, don't send to frontend
+                        print(f"Agent progress: {chunk.get('stage')} - {chunk.get('message')}")
+                    else:
+                        print(f"=== UNHANDLED CHUNK TYPE ===")
+                        print(f"Chunk success: {chunk.get('success')}")
+                        print(f"Has answer: {'answer' in chunk}")
+                        print(f"Has status: {'status' in chunk}")
+                
+                print(f"=== AGENT LOOP FINISHED: {chunk_count} chunks processed ===")
+                
+                # Now stream the response EXACTLY like daily mode does
+                if full_response:
+                    print(f"\n=== STARTING STREAMING: {len(full_response)} chars ===")
+                    # Stream in small chunks just like daily mode
+                    chunk_size = 20  # Small chunks for smooth streaming
+                    chunks_sent = 0
+                    for i in range(0, len(full_response), chunk_size):
+                        content_chunk = full_response[i:i+chunk_size]
+                        chunk_json = json.dumps({'content': content_chunk})
+                        chunks_sent += 1
+                        print(f"Sending chunk {chunks_sent}: {repr(content_chunk)}")
+                        yield f"data: {chunk_json}\n\n".encode('utf-8')
+                    print(f"=== STREAMING COMPLETE: {chunks_sent} chunks sent ===")
+                else:
+                    print("=== WARNING: No response to stream ===")
+            
+            except Exception as e:
+                # Send error as content chunk like daily mode
+                print(f"=== EXCEPTION IN AGENT SYSTEM ===")
+                print(f"Exception: {str(e)}")
+                print(f"Exception type: {type(e)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                error_msg = f"The Agent System is currently unavailable. Please try again later.\n\nTechnical details: {str(e)}"
+                yield f"data: {json.dumps({'content': error_msg})}\n\n".encode('utf-8')
+        
+        else:
+            # Send error as content chunk like daily mode
+            error_msg = f"Unknown mode '{mode}'. Please select 'daily' for Daily mode or 'rag' for Problem Solving mode."
+            yield f"data: {json.dumps({'content': error_msg})}\n\n".encode('utf-8')
+            
+    print(f"=== RETURNING STREAMING RESPONSE ===")
+    print(f"Mode: {mode}")
+    return StreamingResponse(generate_chunks(), media_type="text/event-stream")
 
 def _format_agents_response_with_debug(result: Dict[str, Any]) -> str:
     """Format agents response with optional debug information"""
@@ -410,8 +568,12 @@ async def query_agents_system(
     heavy_model: Optional[str] = None,
     base_model: Optional[str] = None,
     course_prompt: Optional[str] = None,
-) -> dict:
+) -> AsyncGenerator[Dict[str, Any], None]:
     """Query the multi-agent system with optional model overrides"""
+    
+    print(f"=== QUERY_AGENTS_SYSTEM CALLED ===")
+    print(f"Course ID: {course_id}")
+    print(f"Query: {query[:100]}")
     
     try:
         async with httpx.AsyncClient(timeout=TimeoutConfig.RAG_QUERY_TIMEOUT) as client:
@@ -430,24 +592,45 @@ async def query_agents_system(
             if course_prompt:
                 payload["course_prompt"] = course_prompt
             
-            response = await client.post(
-                f'http://{ServiceConfig.LOCALHOST}:{ServiceConfig.AGENTS_SYSTEM_PORT}/query',
-                json=payload
-            )
+            print(f"=== CONNECTING TO AGENT SYSTEM ===")
+            print(f"URL: http://{ServiceConfig.LOCALHOST}:{ServiceConfig.AGENTS_SYSTEM_PORT}/query")
+            print(f"Payload: {payload}")
             
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {
-                    'success': False,
-                    'error': {
-                        'type': 'http_error',
-                        'message': f'Agents service returned {response.status_code}: {response.text}'
-                    }
-                }
+            async with client.stream(
+                "POST",
+                f'http://{ServiceConfig.LOCALHOST}:{ServiceConfig.AGENTS_SYSTEM_PORT}/query',
+                json=payload,
+                headers={'Accept': 'text/event-stream'}
+            ) as response:
+                print(f"=== AGENT RESPONSE STATUS: {response.status_code} ===")
+                response.raise_for_status() # Raise an exception for HTTP errors
+                print(f"=== STARTING TO READ AGENT CHUNKS ===")
+                chunk_count = 0
+                async for chunk in response.aiter_bytes():
+                    chunk_count += 1
+                    print(f"=== RAW AGENT CHUNK {chunk_count} ===")
+                    print(f"Raw bytes: {chunk[:100]}")
+                    # Decode each chunk and yield as dictionary
+                    # Assuming the agent system sends valid JSON chunks as text/event-stream
+                    try:
+                        decoded_chunk = chunk.decode('utf-8').strip()
+                        print(f"Decoded chunk: {decoded_chunk[:200]}")
+                        
+                        # The agent system sends raw JSON, not SSE format
+                        if decoded_chunk:
+                            print(f"Parsing raw JSON from agent system")
+                            yield json.loads(decoded_chunk)
+                    except json.JSONDecodeError as e:
+                        print(f"JSON decode error: {e} - Chunk: {decoded_chunk}")
+                        logger.error(f"JSON decode error in agent stream: {e} - Chunk: {decoded_chunk}")
+                        # Yield an error chunk or handle as appropriate
+                        yield {'success': False, 'error': {'type': 'parsing_error', 'message': f'Failed to parse agent response chunk: {e}'}}
+                
+                print(f"=== FINISHED READING AGENT CHUNKS: {chunk_count} total ===")
     
     except Exception as e:
-        return {
+        logger.error(f"Failed to connect to Agents service: {str(e)}")
+        yield {
             'success': False,
             'error': {
                 'type': 'connection_error',
