@@ -7,22 +7,23 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: backend
-            context: ./backend
+            dockerfile: backend/Dockerfile
             image: xiandadu/oliver-backend-api
           - name: pdf
-            context: ./machine_learning/pdf_processor
+            dockerfile: machine_learning/pdf_processor/Dockerfile
             image: xiandadu/oliver-pdf-service
           - name: rag
-            context: ./machine_learning/rag_system
+            dockerfile: machine_learning/rag_system/Dockerfile
             image: xiandadu/oliver-rag-service
           - name: agent
-            context: ./machine_learning/ai_agents
+            dockerfile: machine_learning/ai_agents/Dockerfile
             image: xiandadu/oliver-agent-service
           - name: frontend
-            context: ./frontend
+            dockerfile: frontend/Dockerfile
             image: xiandadu/oliver-frontend
 
     steps:
@@ -40,7 +41,8 @@ jobs:
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
+          context: .
+          file: ${{ matrix.dockerfile }} 
           push: true
           tags: |
             ${{ matrix.image }}:${{ github.sha }}
