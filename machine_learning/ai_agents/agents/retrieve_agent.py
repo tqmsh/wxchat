@@ -287,6 +287,7 @@ class RetrieveAgent(BaseAgent):
             Return only the alternative queries, one per line.
             """
             
+            # ULTRA VERBOSE: Log the exact prompt being sent (from development branch)
             self.logger.info("\n" + "-"*250)
             self.logger.info("LLM QUERY GENERATION")
             self.logger.info("-"*250)
@@ -294,12 +295,13 @@ class RetrieveAgent(BaseAgent):
             self.logger.info(prompt.strip())
             self.logger.info("-"*250)
             
-            response = self.llm_client.generate(prompt)
+            # Use the comprehensive async pattern from cerebras-streaming-responses branch
+            response = await self._call_llm_async(prompt, temperature=0.3)
             
+            # ULTRA VERBOSE: Log the exact response received (from development branch)
             self.logger.info("LLM RESPONSE:")
             self.logger.info(response.strip())
             self.logger.info("-"*250)
-            
             queries = [q.strip() for q in response.split('\n') if q.strip() and not q.startswith('#')]
             parsed_queries = queries[:3]  # Limit to 3 alternatives
             
@@ -312,6 +314,50 @@ class RetrieveAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Alternative query generation failed: {e}")
             return []
+    
+    async def _call_llm_async(self, prompt: str, temperature: float) -> str:
+        """
+        Call LLM with error handling, retry logic, and proper async interface support.
+        
+        Handles different LLM client types:
+        - LangChain clients with ainvoke method (Cerebras, Gemini)
+        - OpenAI client with generate_async method
+        - Other clients with synchronous generate method
+        
+        Includes retry logic for server-side errors (up to 3 attempts).
+        """
+        async def _llm_operation():
+            if hasattr(self.llm_client, 'get_llm_client'):
+                llm = self.llm_client.get_llm_client()
+                # Check if the underlying client has ainvoke (LangChain compatibility)
+                if hasattr(llm, 'ainvoke'):
+                    response = await llm.ainvoke(prompt, temperature=temperature)
+                    return response.content if hasattr(response, 'content') else str(response)
+                else:
+                    # For raw clients (like OpenAI), use the wrapper's async method
+                    if hasattr(self.llm_client, 'generate_async'):
+                        response = await self.llm_client.generate_async(prompt, temperature=temperature)
+                        return str(response)
+                    else:
+                        # Last resort: synchronous generate
+                        response = self.llm_client.generate(prompt, temperature=temperature)
+                        return str(response)
+            else:
+                # Direct client interface - check for async support first
+                if hasattr(self.llm_client, 'generate_async'):
+                    response = await self.llm_client.generate_async(prompt, temperature=temperature)
+                    return str(response)
+                else:
+                    # Fallback to synchronous generate
+                    response = self.llm_client.generate(prompt, temperature=temperature)
+                    return str(response)
+        
+        try:
+            # Use retry mechanism for server-side errors
+            return await self._retry_with_backoff(_llm_operation, max_retries=3, base_delay=1.0)
+        except Exception as e:
+            self.logger.error(f"LLM call failed in retrieve agent after all retries: {str(e)}")
+            return ""
     
     def _merge_results(
         self, 
