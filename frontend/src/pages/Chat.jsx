@@ -318,13 +318,13 @@ export default function ChatPage() {
             // console.log("=== LOADING MESSAGE TRANSFORMATION ===");
             // console.log("Original msg.content:", msg.content.substring(0, 300));
             // console.log(
-              "Extracted HTML:",
-              maybeHtml ? maybeHtml.substring(0, 300) : "None"
-            );
+            //   "Extracted HTML:",
+            //   maybeHtml ? maybeHtml.substring(0, 300) : "None"
+            // );
             // console.log(
-              "Will use:",
-              maybeHtml ? "HTML renderer" : "Markdown renderer"
-            );
+            //   "Will use:",
+            //   maybeHtml ? "HTML renderer" : "Markdown renderer"
+            // );
             // console.log("======================================");
           }
 
@@ -366,9 +366,9 @@ export default function ChatPage() {
     // console.log("Submit - Input value:", input);
     // console.log("Submit - Input trimmed:", input.trim());
     // console.log(
-      "Submit - Has attachments:",
-      experimental_attachments?.length > 0
-    );
+    //   "Submit - Has attachments:",
+    //   experimental_attachments?.length > 0
+    // );
 
     setIsSendingMessage(true);
 
