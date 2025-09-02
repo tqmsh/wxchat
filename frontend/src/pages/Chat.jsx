@@ -569,7 +569,7 @@ export default function ChatPage() {
         // console.log("==========================");
 
         const chatResponse = await fetch(
-          "${import.meta.env.VITE_API_BASE_URL}/chat",
+          `${import.meta.env.VITE_API_BASE_URL}/chat`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" }, // Initially assume JSON, check header later
@@ -942,7 +942,7 @@ export default function ChatPage() {
 
       // Get AI response
       const chatResponse = await fetch(
-        "${import.meta.env.VITE_API_BASE_URL}/chat",
+        `${import.meta.env.VITE_API_BASE_URL}/chat`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
