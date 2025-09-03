@@ -1389,33 +1389,19 @@ def _convert_latex_to_text(latex_content: str) -> str:
     text = re.sub(r"\\subsubsection\{([^}]*)\}", r"\n\n\1\n", text)
     text = re.sub(r"\\paragraph\{([^}]*)\}", r"\n\1\n", text)
 
-    # Remove math environments
-    text = re.sub(
-        r"\\begin\{equation\}.*?\\end\{equation\}",
-        "[MATH EQUATION]",
-        text,
-        flags=re.DOTALL,
-    )
-    text = re.sub(
-        r"\\begin\{align\}.*?\\end\{align\}", "[MATH EQUATION]", text, flags=re.DOTALL
-    )
-    text = re.sub(r"\\begin\{math\}.*?\\end\{math\}", "[MATH]", text, flags=re.DOTALL)
-    text = re.sub(r"\$.*?\$", "[MATH]", text)
-    text = re.sub(r"\$\$.*?\$\$", "[MATH EQUATION]", text, flags=re.DOTALL)
+    # Preserve math content: keep inline/block math as-is
+    # Just ensure we don't break math by touching inner content here.
 
-    # Remove other common environments
+    # Unwrap common text environments while preserving their content
     text = re.sub(
-        r"\\begin\{itemize\}.*?\\end\{itemize\}", "[ITEMIZE]", text, flags=re.DOTALL
+        r"\\begin\{itemize\}(.*?)\\end\{itemize\}", r"\1", text, flags=re.DOTALL
     )
     text = re.sub(
-        r"\\begin\{enumerate\}.*?\\end\{enumerate\}",
-        "[ENUMERATE]",
-        text,
-        flags=re.DOTALL,
+        r"\\begin\{enumerate\}(.*?)\\end\{enumerate\}", r"\1", text, flags=re.DOTALL
     )
-    text = re.sub(r"\\begin\{quote\}.*?\\end\{quote\}", r"\1", text, flags=re.DOTALL)
+    text = re.sub(r"\\begin\{quote\}(.*?)\\end\{quote\}", r"\1", text, flags=re.DOTALL)
     text = re.sub(
-        r"\\begin\{abstract\}.*?\\end\{abstract\}",
+        r"\\begin\{abstract\}(.*?)\\end\{abstract\}",
         r"Abstract: \1",
         text,
         flags=re.DOTALL,
@@ -1437,16 +1423,12 @@ def _convert_latex_to_text(latex_content: str) -> str:
     text = re.sub(r"\\label\{[^}]*\}", "", text)
 
     # Remove figure and table environments
-    text = re.sub(
-        r"\\begin\{figure\}.*?\\end\{figure\}", "[FIGURE]", text, flags=re.DOTALL
-    )
-    text = re.sub(
-        r"\\begin\{table\}.*?\\end\{table\}", "[TABLE]", text, flags=re.DOTALL
-    )
+    text = re.sub(r"\\begin\{figure\}.*?\\end\{figure\}", "", text, flags=re.DOTALL)
+    text = re.sub(r"\\begin\{table\}.*?\\end\{table\}", "", text, flags=re.DOTALL)
 
-    # Remove remaining LaTeX commands (basic cleanup)
-    text = re.sub(r"\\[a-zA-Z]+\{[^}]*\}", "", text)
-    text = re.sub(r"\\[a-zA-Z]+", "", text)
+    # Relaxed cleanup: unwrap single-arg commands by keeping their content; leave others intact
+    text = re.sub(r"\\[a-zA-Z]+\{([^}]*)\}", r"\1", text)
+    # Do NOT strip bare commands like \alpha to avoid losing LaTeX semantics
 
     # Clean up whitespace
     text = re.sub(r"\n\s*\n\s*\n", "\n\n", text)  # Remove excessive newlines
