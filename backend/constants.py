@@ -1,5 +1,5 @@
 """
-WatAIOliver Backend - Configuration Constants
+McGill GeoAnalysis Assistant Backend - Configuration Constants
 
 This file contains backend-specific configuration parameters.
 """
@@ -10,20 +10,17 @@ This file contains backend-specific configuration parameters.
 
 class ServiceConfig:
     """Service URLs and port configuration"""
-    
+
     # Service Ports
     FRONTEND_PORT = 5173
     BACKEND_PORT = 8000
     PDF_PROCESSOR_PORT = 8001
     RAG_SYSTEM_PORT = 8002
     AGENTS_SYSTEM_PORT = 8003
-    
+
     # Service Hosts
     DEFAULT_HOST = "0.0.0.0"
     LOCALHOST = "localhost"
-    
-    # External Services
-    NEBULA_BASE_URL = "http://ece-nebula07.eng.uwaterloo.ca:8976"
     
     # Test User
     TEST_USER_ID = "A1"

@@ -22,9 +22,6 @@ export function ChatInterface({
   selectedHeavyModel,
   setSelectedHeavyModel,
   heavyModelOptions,
-  selectedCourseId,
-  setSelectedCourseId,
-  selectedCourse,
   useAgents,
   setUseAgents,
   messages,
@@ -46,7 +43,7 @@ export function ChatInterface({
         <div className="flex flex-col items-start">
           <div className="flex justify-between items-center w-full mb-2">
             <h1 className="text-xl font-semibold text-gray-900">
-              {selectedConversation ? selectedConversation.title : 'Oliver Chat'}
+              {selectedConversation ? selectedConversation.title : 'Chat'}
             </h1>
           </div>
           <div className="mt-2 space-y-3">
@@ -64,17 +61,6 @@ export function ChatInterface({
               placeholder="Foundation model"
               className="w-48"
             />
-            {selectedModel === "daily" && (
-              <>
-                {selectedCourse && (
-                  <div className="w-64 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Course</label>
-                    <p className="text-sm text-blue-700 font-medium">{selectedCourse.title}</p>
-                    {/* Only show term if it exists to avoid empty elements */}
-                    {selectedCourse.term && <p className="text-xs text-blue-600">{selectedCourse.term}</p>}
-                  </div>
-                )}
-              </>
             )}
             {selectedModel === "rag" && (
               <>
@@ -93,14 +79,6 @@ export function ChatInterface({
                   className="w-48"
                 />
 
-                {selectedCourse && (
-                  <div className="w-64 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Course</label>
-                    <p className="text-sm text-blue-700 font-medium">{selectedCourse.title}</p>
-                    {/* Only show term if it exists to avoid empty elements */}
-                    {selectedCourse.term && <p className="text-xs text-blue-600">{selectedCourse.term}</p>}
-                  </div>
-                )}
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -178,10 +156,10 @@ export function ChatInterface({
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                       <div className="flex items-center mb-4">
                         <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mr-3">
-                          {/* TODO: replace with oliver logo */}
+                          {/* TODO: replace with assistant logo */}
                           <span className="text-white text-sm font-bold">O</span>
                         </div>
-                        <span className="text-sm font-medium text-gray-600">Oliver Assistant</span>
+                        <span className="text-sm font-medium text-gray-600">Assistant</span>
                       </div>
                       {message?.meta?.type === "html" ? (
                         <HtmlPreview html={message.meta.html} />
@@ -193,7 +171,7 @@ export function ChatInterface({
                         <div className="flex items-center space-x-2">
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
                           <span className="text-sm text-gray-600">
-                            {selectedModel === "daily" && "Searching through course materials..."}
+                            {selectedModel === "daily" && "Searching through knowledge base..."}
                             {selectedModel === "rag" && "Agents are solving the problem..."}
                           </span>
                         </div>
@@ -227,15 +205,15 @@ export function ChatInterface({
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                     <div className="flex items-center mb-4">
                       <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mr-3">
-                        {/* TODO: replace with oliver logo */}
+                        {/* TODO: replace with assistant logo */}
                         <span className="text-white text-sm font-bold">O</span>
                       </div>
-                      <span className="text-sm font-medium text-gray-600">Oliver Assistant</span>
+                      <span className="text-sm font-medium text-gray-600">Assistant</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
                       <span className="text-sm text-gray-600">
-                        {selectedModel === "daily" && "Searching through course materials..."}
+                        {selectedModel === "daily" && "Searching through knowledge base..."}
                         {selectedModel === "rag" && "Agents are solving the problem..."}
                       </span>
                     </div>
@@ -261,7 +239,7 @@ export function ChatInterface({
               stop={stop}
               isGenerating={false}
               transcribeAudio={transcribeAudio}
-              placeholder="Ask me about school..."
+              placeholder="Ask me about geospatial analysis..."
             />
           )}
         </ChatForm>

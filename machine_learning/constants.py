@@ -1,5 +1,5 @@
 """
-WatAIOliver Machine Learning - Configuration Constants
+McGill GeoAnalysis Assistant - Machine Learning Configuration Constants
 
 This file contains ML-specific configuration parameters including
 official model identifiers, processing parameters, and system limits.

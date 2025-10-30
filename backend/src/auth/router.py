@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from .models import GoogleTokenRequest, AuthResponse, RoleUpdateRequest, AccountStatusRequest, EmailVerificationRequest, CodeVerificationRequest, EmailVerificationResponse
+from .models import GoogleTokenRequest, AuthResponse, RoleUpdateRequest, AccountStatusRequest, EmailVerificationRequest, CodeVerificationRequest, EmailVerificationResponse, AuthUser
 from .service import AuthService
 from .middleware import auth_required, admin_required, instructor_required
 import logging
@@ -14,14 +14,15 @@ router = APIRouter(
 @router.post("/google", response_model=AuthResponse)
 async def authenticate_with_google(token_request: GoogleTokenRequest):
     try:
+        logger.info(f"Router received Google auth request: {token_request}")
         result = await AuthService.authenticate_with_google(token_request)
-        
+
         if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=result.message
             )
-        
+
         return result
     except HTTPException:
         raise

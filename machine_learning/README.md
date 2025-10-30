@@ -1,10 +1,10 @@
-# Machine Learning Services
+# Machine Learning Services - McGill GeoAnalysis Assistant
 
-This directory contains the Retrieval Augmented Generation (RAG) system and supporting services.
+This directory contains the Retrieval Augmented Generation (RAG) system and multi-agent AI services for geospatial data analysis.
 
-- `rag_system/` – Embedding API and vector database helpers
-- `pdf_processor/` – Converts PDFs to text/markdown
-- `ai_agents/` – Optional multi‑agent reasoning system
+- `rag_system/` – Embedding API and vector database for geospatial document retrieval
+- `pdf_processor/` – Converts PDFs, text, and geospatial documents to analyzable formats
+- `ai_agents/` – Multi-agent reasoning system for complex geospatial analysis
 
 Each service has its own README with setup instructions. After activating a virtual environment you can start the RAG server with:
 ```bash
@@ -20,14 +20,11 @@ python -m uvicorn rag_system.app.main:app --reload --host 0.0.0.0 --port 8002
 
 ```
 machine_learning/
-├── rag_system/          # Modern RAG system (replaces oliver legacy)
-│   ├── embedding/       # Google text-embedding-004 client
-│   ├── services/        # RAG services and text processing
+├── rag_system/          # RAG system optimized for geospatial analysis
+│   ├── embedding/       # Text embedding for geographic documents
+│   ├── services/        # RAG services for spatial data analysis
 │   ├── vector_db/       # Supabase vector database
 │   ├── llm_clients/     # LLM integration
 │   ├── examples/        # Usage examples
 │   └── README.md        # Detailed documentation
 ├── scripts/             # Utility scripts and demos
-├── tests/               # Test suites
-└── README.md            # This file
-```

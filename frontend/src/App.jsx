@@ -5,7 +5,6 @@ import AdminPage from "./pages/Admin.jsx"
 import EditAdminEntry from "./pages/EditAdminEntry.jsx"
 import Log from "./pages/Log.jsx"
 import Login from "./pages/Login.jsx"
-import CourseSelection from "./pages/CourseSelection.jsx"
 import ProtectedRoute from "./components/ProtectedRoute.jsx"
 
 function App() {
@@ -33,9 +32,9 @@ function App() {
           <Log />
         </ProtectedRoute>
       } />
-      <Route path="/courses" element={
-        <ProtectedRoute requiredRoles={['student']}>
-          <CourseSelection />
+      <Route path="/chat" element={
+        <ProtectedRoute>
+          <ChatPage />
         </ProtectedRoute>
       } />
       <Route path="/" element={<Login />} />

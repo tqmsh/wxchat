@@ -36,8 +36,6 @@ export default function ChatPage() {
   const [selectedRagModel, setSelectedRagModel] =
     useState("text-embedding-004");
   const [selectedHeavyModel, setSelectedHeavyModel] = useState("");
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState(null);
   const [useAgents, setUseAgents] = useState(true);
   const [customModels, setCustomModels] = useState([]);
   const [allBaseModelOptions, setAllBaseModelOptions] = useState([]);
@@ -64,7 +62,7 @@ export default function ChatPage() {
     {
       label: "Daily",
       value: "daily",
-      description: "RAG-enhanced response with course-specific prompt",
+      description: "RAG-enhanced response with geospatial context",
     },
     {
       label: "Problem Solving",
@@ -144,66 +142,6 @@ export default function ChatPage() {
     setAllBaseModelOptions(defaultBaseModels);
   }, []);
 
-  // Load custom models when course is selected
-  const loadCustomModels = async (courseId) => {
-    if (!courseId) {
-      setCustomModels([]);
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/course/${courseId}/custom-models`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.custom_models || [];
-        setCustomModels(models);
-
-        // Update base model options to include custom models
-        const defaultBaseModels = [
-          {
-            label: "Gemini Flash",
-            value: "gemini-2.5-flash",
-            description: "Google's fast and efficient model (Default)",
-          },
-          {
-            label: "Cerebras Qwen MoE",
-            value: "qwen-3-235b-a22b-instruct-2507",
-            description: "Fast Mixture-of-Experts model from Cerebras",
-          },
-          {
-            label: "GPT-4.1 Mini",
-            value: "gpt-4.1-mini",
-            description: "Lightweight version of OpenAI's GPT-4.1",
-          },
-        ];
-
-        const customModelOptions = models.map((model) => ({
-          label: model.name,
-          value: `custom-${model.name}`,
-          description: `Custom ${model.model_type} model`,
-          isCustom: true,
-        }));
-
-        setAllBaseModelOptions([...defaultBaseModels, ...customModelOptions]);
-      } else {
-        console.error("Failed to load custom models");
-        setCustomModels([]);
-      }
-    } catch (error) {
-      console.error("Error loading custom models:", error);
-      setCustomModels([]);
-    }
-  };
-
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (!userData) {
@@ -226,45 +164,7 @@ export default function ChatPage() {
     if (userId) {
       loadConversations();
     }
-  }, [userId, selectedCourseId]);
-
-  useEffect(() => {
-    const courseParam =
-      searchParams.get("course") || searchParams.get("course_id");
-    if (courseParam) {
-      setSelectedCourseId(courseParam);
-      // console.log("Course ID loaded from URL:", courseParam);
-
-      // Fetch course details
-      fetch(`${import.meta.env.VITE_API_BASE_URL}/course/${courseParam}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      })
-        .then(async (response) => {
-          const course = await response.json();
-          // Handle authentication errors or course not found gracefully to prevent crashes when course data unavailable
-          if (!response.ok || course?.detail) {
-            console.warn(
-              "Course fetch failed or unauthorized; using course ID only.",
-              course
-            );
-            // Set a minimal course object with just the ID for display
-            setSelectedCourse({ title: courseParam, term: null });
-            return;
-          }
-          setSelectedCourse(course);
-          // console.log("Course details loaded:", course);
-          // Load custom models for this course
-          loadCustomModels(courseParam);
-        })
-        .catch((error) => {
-          console.error("Error loading course details:", error);
-          // Set a minimal course object with just the ID for display
-          setSelectedCourse({ title: courseParam, term: null });
-        });
-    }
-  }, [searchParams]);
+  }, [userId]);
 
   useEffect(() => {
     // Don't load messages if we're currently sending a message
@@ -273,23 +173,12 @@ export default function ChatPage() {
       return;
     }
 
-    // Guard: ensure selected conversation belongs to selected course
-    if (
-      selectedConversation &&
-      selectedCourseId &&
-      selectedConversation.course_id !== selectedCourseId
-    ) {
-      setSelectedConversation(null);
-      setMessages([]);
-      return;
-    }
-
     if (selectedConversation) {
       loadMessages(selectedConversation.conversation_id);
     } else {
       setMessages([]);
     }
-  }, [selectedConversation, isSendingMessage, selectedCourseId]);
+  }, [selectedConversation, isSendingMessage]);
 
   // Get loading state for current conversation
   const getCurrentConversationLoadingState = () => {
@@ -308,9 +197,6 @@ export default function ChatPage() {
       const url = new URL(
         `${import.meta.env.VITE_API_BASE_URL}/chat/conversations/${userId}`
       );
-      if (selectedCourseId) {
-        url.searchParams.set("course_id", selectedCourseId);
-      }
       const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
@@ -455,7 +341,7 @@ export default function ChatPage() {
               title:
                 input ||
                 (experimental_attachments?.length ? "File Upload" : "New Chat"),
-              course_id: selectedCourseId || null,
+              course_id: null,
             }),
           }
         );
@@ -470,7 +356,7 @@ export default function ChatPage() {
               title:
                 input ||
                 (experimental_attachments?.length ? "File Upload" : "New Chat"),
-              course_id: selectedCourseId || null,
+              course_id: null,
               user_id: userId,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -563,7 +449,7 @@ export default function ChatPage() {
                   (experimental_attachments?.length
                     ? "Please analyze the uploaded file."
                     : ""),
-                course_id: selectedCourseId || null, // Always save course_id if available
+                course_id: null, // Always save course_id if available
                 model: selectedBaseModel,
               }),
             }
@@ -589,7 +475,7 @@ export default function ChatPage() {
           file_context: fileContext || null,
           model: selectedBaseModel,
           mode: selectedModel,
-          course_id: selectedCourseId,
+          course_id: null,
           rag_model: selectedRagModel,
           heavy_model: useAgents ? selectedHeavyModel : null,
           use_agents: useAgents,
@@ -983,7 +869,7 @@ export default function ChatPage() {
                 user_id: userId,
                 sender: "assistant",
                 content: aiResponseContent,
-                course_id: selectedCourseId || null,
+                course_id: null,
                 model: selectedBaseModel,
               }),
             }
@@ -1075,7 +961,7 @@ export default function ChatPage() {
                 message.content.length > 50
                   ? message.content.substring(0, 50) + "..."
                   : message.content,
-              course_id: selectedCourseId || null,
+              course_id: null,
             }),
           }
         );
@@ -1091,7 +977,7 @@ export default function ChatPage() {
                 message.content.length > 50
                   ? message.content.substring(0, 50) + "..."
                   : message.content,
-              course_id: selectedCourseId || null,
+              course_id: null,
               user_id: userId,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -1120,7 +1006,7 @@ export default function ChatPage() {
               user_id: userId,
               sender: "user",
               content: message.content,
-              course_id: selectedCourseId || null,
+              course_id: null,
               model: selectedBaseModel,
             }),
           }
@@ -1138,7 +1024,7 @@ export default function ChatPage() {
             conversation_id: newConversationId,
             model: selectedBaseModel,
             mode: selectedModel,
-            course_id: selectedCourseId,
+            course_id: null,
             rag_model: selectedRagModel,
             heavy_model: useAgents ? selectedHeavyModel : null,
             use_agents: useAgents,
@@ -1324,7 +1210,7 @@ export default function ChatPage() {
               user_id: userId,
               sender: "assistant",
               content: aiResponseContent,
-              course_id: selectedCourseId || null,
+              course_id: null,
               model: selectedBaseModel,
             }),
           }
@@ -1500,18 +1386,6 @@ export default function ChatPage() {
             </Button>
           )}
 
-          {/* Back to Course Selection - Only for students */}
-          {userRole === "student" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/courses")}
-              className="bg-white/90 backdrop-blur-sm border-gray-300 hover:bg-gray-50"
-            >
-              ← Course Selection
-            </Button>
-          )}
-
           {/* Logout - For everyone */}
           <Button
             variant="outline"
@@ -1542,9 +1416,6 @@ export default function ChatPage() {
                 selectedHeavyModel={selectedHeavyModel}
                 setSelectedHeavyModel={setSelectedHeavyModel}
                 heavyModelOptions={heavyModelOptions}
-                selectedCourseId={selectedCourseId}
-                setSelectedCourseId={setSelectedCourseId}
-                selectedCourse={selectedCourse}
                 useAgents={useAgents}
                 setUseAgents={setUseAgents}
                 append={append}
@@ -1572,9 +1443,6 @@ export default function ChatPage() {
                 selectedHeavyModel={selectedHeavyModel}
                 setSelectedHeavyModel={setSelectedHeavyModel}
                 heavyModelOptions={heavyModelOptions}
-                selectedCourseId={selectedCourseId}
-                setSelectedCourseId={setSelectedCourseId}
-                selectedCourse={selectedCourse}
                 useAgents={useAgents}
                 setUseAgents={setUseAgents}
                 messages={messages}

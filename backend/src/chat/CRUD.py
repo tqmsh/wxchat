@@ -10,8 +10,7 @@ def create_conversation(data: ConversationCreate):
         conversation_data = {
             "conversation_id": str(uuid.uuid4()),
             "user_id": data.user_id,
-            "title": data.title, 
-            "course_id": getattr(data, "course_id", None),
+            "title": data.title,
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
@@ -22,11 +21,9 @@ def create_conversation(data: ConversationCreate):
         raise e
 
 # READ (get all conversations for a user)
-def get_conversations(user_id: str, course_id: str | None = None):
+def get_conversations(user_id: str):
     try:
         query = supabase.table("conversations").select("*").eq("user_id", user_id)
-        if course_id:
-            query = query.eq("course_id", course_id)
         response = query.order("created_at", desc=False).execute()
         return response.data
     except Exception as e:
@@ -68,8 +65,7 @@ def create_message(data: MessageCreate):
             "conversation_id": data.conversation_id,
             "user_id": data.user_id,
             "sender": data.sender,
-            "content": data.content, 
-            "course_id": getattr(data, "course_id", None),
+            "content": data.content,
             "model": getattr(data, "model", None),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),

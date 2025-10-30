@@ -35,8 +35,8 @@ async def create_conversation(data: ConversationCreate, response_model=Conversat
     return result
 
 @router.get("/conversations/{user_id}")
-async def get_conversations(user_id: str, response_model=ConversationOut, course_id: str | None = Query(None)):
-    result = supabase_crud.get_conversations(user_id, course_id=course_id)
+async def get_conversations(user_id: str, response_model=ConversationOut):
+    result = supabase_crud.get_conversations(user_id)
     return result
 
 @router.post("/update_conversation")
@@ -89,38 +89,19 @@ async def upload_files(
 @router.post("/upload_files_for_rag")
 async def upload_files_for_rag(
     files: List[UploadFile] = File(...),
-    course_id: str = Form(...),
     user_id: str = Form(...),
     rag_model: str | None = Form(None),
 ):
     try:
-        results = await service.process_files_for_rag(files, course_id, user_id, rag_model)
+        results = await service.process_files_for_rag(files, user_id, rag_model)
         return {
             'message': 'Files processed for RAG knowledge base',
-            'results': results,
-            'course_id': course_id
+            'results': results
         }
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"RAG file upload and processing failed: {str(e)}"
         )
-
-
-
-@router.post("/courses")
-async def create_course(data: dict):
-    """Create a new course"""
-    try:
-        from src.course.CRUD import create_course
-        course = create_course(
-            created_by=data.get('created_by', 'admin'),
-            title=data.get('title', ''),
-            description=data.get('description', ''),
-            term=data.get('term', '')
-        )
-        return {"course": course}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating course: {str(e)}")
 
 

@@ -19,9 +19,6 @@ export function WelcomeScreen({
   selectedHeavyModel,
   setSelectedHeavyModel,
   heavyModelOptions,
-  selectedCourseId,
-  setSelectedCourseId,
-  selectedCourse,
   useAgents,
   setUseAgents,
   append,
@@ -54,10 +51,10 @@ export function WelcomeScreen({
       </Button>
       <div className="text-center">
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">
-          Welcome to Oliver.
+          Welcome to GeoAnalysis Assistant.
         </h1>
         <p className="text-gray-600">
-          Ask me anything about your course!
+          Ask me anything about geospatial data analysis!
         </p>
         <div className="mt-4 flex flex-col items-center space-y-4">
           <div className="w-48">
@@ -78,17 +75,6 @@ export function WelcomeScreen({
               placeholder="Foundation model"
             />
           </div>
-          {selectedModel === "daily" && (
-            <>
-              {selectedCourse && (
-                <div className="w-64 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
-                  <p className="text-sm text-blue-700 font-medium">{selectedCourse.title}</p>
-                  <p className="text-xs text-blue-600">{selectedCourse.term}</p>
-                </div>
-              )}
-            </>
-          )}
           {selectedModel === "rag" && (
             <>
               <div className="w-48">
@@ -110,13 +96,6 @@ export function WelcomeScreen({
                 />
               </div>
 
-              {selectedCourse && (
-                <div className="w-64 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
-                  <p className="text-sm text-blue-700 font-medium">{selectedCourse.title}</p>
-                  <p className="text-xs text-blue-600">{selectedCourse.term}</p>
-                </div>
-              )}
               <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -143,9 +122,9 @@ export function WelcomeScreen({
         label="Get started with some examples"
         append={append}
         suggestions={[
-          "What was covered in yesterday's lesson?",
-          "Did Lecture 16 in ECE 108 cover cardinality?",
-          "How much time do I need to finish yesterday's lecture?"
+          "How do I analyze spatial patterns in demographic data?",
+          "What GIS techniques can I use for environmental impact assessment?",
+          "Can you help me interpret satellite imagery for land use classification?"
         ]}
       />
       <div className="w-full max-w-2xl pt-5">
@@ -163,7 +142,7 @@ export function WelcomeScreen({
               stop={stop}
               isGenerating={false}
               transcribeAudio={transcribeAudio}
-              placeholder="Ask me about school..."
+              placeholder="Ask me about geospatial analysis..."
             />
           )}
         </ChatForm>

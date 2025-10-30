@@ -24,3 +24,5 @@ machine_learning/.env
 .cursor/rules
 
 /output
+
+CLAUDE.md

@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 
 export default function Login() {
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState("student");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -19,16 +17,6 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const navigate = useNavigate();
-
-  // Check for suggested login type from URL parameters
-  useEffect(() => {
-    const suggested = searchParams.get("suggested");
-    if (suggested === "student") {
-      setActiveTab("student");
-    } else if (suggested === "instructor") {
-      setActiveTab("instructor");
-    }
-  }, [searchParams]);
 
   const validateEmail = (email) => {
     const allowedDomains = ["@gmail.com", "@uwaterloo.ca"];
@@ -43,14 +31,13 @@ export default function Login() {
 
     try {
       // Send the access token to our backend
-      const response = await fetch("/auth/google", {
+      const response = await fetch("http://localhost:8000/auth/google", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           access_token: tokenResponse.access_token,
-          account_type: activeTab,
         }),
       });
 
@@ -63,11 +50,11 @@ export default function Login() {
         }
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Navigate based on user role
-        if (data.user.role === "instructor" || data.user.role === "admin") {
+        // Navigate to chat for all users
+        if (data.user.role === "admin") {
           navigate("/admin");
         } else {
-          navigate("/courses");
+          navigate("/chat");
         }
       } else {
         setError(data.message || "Authentication failed");
@@ -127,7 +114,7 @@ export default function Login() {
 
     try {
       console.log("Sending request to /auth/send-code with email:", formData.email);
-      const response = await fetch("/auth/send-code", {
+      const response = await fetch("http://localhost:8000/auth/send-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +152,7 @@ export default function Login() {
 
     try {
       console.log("Sending verification request to /auth/verify-code with email:", userEmail, "code:", verificationCode);
-      const response = await fetch("/auth/verify-code", {
+      const response = await fetch("http://localhost:8000/auth/verify-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -186,11 +173,11 @@ export default function Login() {
         // Store auth info in localStorage
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Navigate based on user role
-        if (data.user.role === "instructor" || data.user.role === "admin") {
+        // Navigate to chat for all users
+        if (data.user.role === "admin") {
           navigate("/admin");
         } else {
-          navigate("/courses");
+          navigate("/chat");
         }
       } else {
         setError(data.message || "Verification failed");
@@ -222,7 +209,7 @@ export default function Login() {
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Welcome to Oliver
+            Welcome
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Please sign in to continue
@@ -232,32 +219,6 @@ export default function Login() {
         {!showEmailLogin ? (
           // Google Login View
           <>
-            {/* Login Type Selector */}
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 mt-8">
-              <button
-                className={`flex-1 py-3 px-4 text-sm font-medium ${
-                  activeTab === "student"
-                    ? "bg-black text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setActiveTab("student")}
-                disabled={loading}
-              >
-                Student
-              </button>
-              <button
-                className={`flex-1 py-3 px-4 text-sm font-medium ${
-                  activeTab === "instructor"
-                    ? "bg-black text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setActiveTab("instructor")}
-                disabled={loading}
-              >
-                Instructor
-              </button>
-            </div>
-
             {/* Google SSO Button */}
             <div>
               <Button
@@ -276,9 +237,7 @@ export default function Login() {
                 />
                 {loading
                   ? "Signing in..."
-                  : `Continue with Google as ${
-                      activeTab === "instructor" ? "Instructor" : "Student"
-                    }`}
+                  : "Continue with Google"}
               </Button>
             </div>
 
@@ -321,7 +280,7 @@ export default function Login() {
                   value={formData.email}
                   onChange={handleInputChange}
                   className={`mt-1 ${error ? 'border-red-500' : ''}`}
-                  placeholder={`Enter your ${activeTab === "instructor" ? "instructor" : "student"} email`}
+                  placeholder="Enter your email"
                   disabled={loading}
                 />
                 <p className="mt-1 text-xs text-gray-500">

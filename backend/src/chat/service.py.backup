@@ -27,7 +27,32 @@ from machine_learning.rag_system.llm_clients.openai_client import OpenAIClient
 from machine_learning.rag_system.llm_clients.anthropic_client import AnthropicClient
 from machine_learning.rag_system.app.config import get_settings
 
-BASE_URL = "http://localhost:8976"  # Local development URL
+BASE_URL = ServiceConfig.NEBULA_BASE_URL
+
+
+def get_custom_model_api_key(course_id: str, model_name: str) -> Optional[str]:
+    """Get API key for a custom model in a specific course."""
+    if not course_id or not model_name.startswith("custom-"):
+        return None
+
+    try:
+        from src.course.CRUD import get_course
+
+        course = get_course(course_id)
+        if not course:
+            return None
+
+        custom_models = course.get("custom_models", []) or []
+        custom_model_name = model_name.replace("custom-", "")
+
+        for model in custom_models:
+            if model.get("name") == custom_model_name:
+                return model.get("api_key")
+
+        return None
+    except Exception as e:
+        logger.error(f"Error getting custom model API key: {e}")
+        return None
 
 
 def generate(data: ChatRequest) -> str:
@@ -411,7 +436,7 @@ def enhance_prompt_with_rag_context(
             )
 
     # Create enhanced prompt with actual document content
-    enhanced_prompt = f"""You are a geospatial data analysis assistant helping researchers analyze spatial data and geographic information. You have access to relevant information from geospatial documents.
+    enhanced_prompt = f"""You are an educational assistant helping students understand course materials. You have access to relevant information from course documents.
 
 RETRIEVED CONTEXT:
 {document_context}
@@ -1258,6 +1283,7 @@ async def process_files_for_chat(
 
 async def process_files_for_rag(
     files: List[UploadFile],
+    course_id: str,
     user_id: str,
     rag_model: Optional[str] = None,
 ) -> List[Dict[str, Any]]:

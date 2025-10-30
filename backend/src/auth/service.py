@@ -5,7 +5,7 @@ import string
 from typing import Optional, Dict, Any
 from src.supabaseClient import supabase
 from .models import AuthUser, GoogleTokenRequest, AuthResponse, RoleUpdateRequest, EmailVerificationRequest, CodeVerificationRequest, EmailVerificationResponse
-from twilio.rest import Client
+# from twilio.rest import Client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,21 +36,26 @@ class AuthService:
     @staticmethod
     async def _get_google_user_info(access_token: str) -> Dict[str, Any]:
         """Get user info from Google API"""
+        logger.info(f"Attempting to validate Google access token: {access_token[:20]}...")
         google_response = requests.get(
             'https://www.googleapis.com/oauth2/v3/userinfo',
             headers={'Authorization': f'Bearer {access_token}'},
             timeout=10
         )
-        
+
+        logger.info(f"Google API response status: {google_response.status_code}")
+
         if google_response.status_code != 200:
-            raise Exception("Invalid Google access token")
-        
+            logger.error(f"Google API error response: {google_response.text}")
+            raise Exception(f"Invalid Google access token - Status: {google_response.status_code}")
+
         google_user = google_response.json()
+        logger.info(f"Successfully retrieved Google user: {google_user.get('email')}")
         email = google_user.get('email')
-        
+
         if not email:
             raise Exception("Could not retrieve email from Google")
-        
+
         return google_user
     
     @staticmethod
@@ -71,22 +76,17 @@ class AuthService:
         profile_response = supabase.table("users").select("*").eq("user_id", existing_user.id).execute()
         
         if not profile_response.data:
-            await AuthService._create_user_profile(existing_user, google_user, token_request.account_type)
+            await AuthService._create_user_profile(existing_user, google_user)
             profile_response = supabase.table("users").select("*").eq("user_id", existing_user.id).execute()
-        else:
-            # Update role based on login request
-            await AuthService._update_user_role_on_login(existing_user.id, profile_response.data[0], token_request.account_type)
-            profile_response = supabase.table("users").select("*").eq("user_id", existing_user.id).execute()
-        
+
         profile = profile_response.data[0] if profile_response.data else None
-        login_role = token_request.account_type if token_request.account_type in ["student", "instructor"] else "student"
-        
+
         auth_user = AuthUser(
             id=existing_user.id,
             email=existing_user.email,
             username=profile.get("username", google_user.get("name", existing_user.email.split("@")[0])) if profile else google_user.get("name", existing_user.email.split("@")[0]),
             full_name=profile.get("full_name", google_user.get("name")) if profile else google_user.get("name"),
-            role=login_role,
+            role="user",
             email_confirmed=existing_user.email_confirmed_at is not None,
             created_at=existing_user.created_at,
             last_sign_in=existing_user.last_sign_in_at
@@ -112,25 +112,27 @@ class AuthService:
     @staticmethod
     async def authenticate_with_google(token_request: GoogleTokenRequest) -> AuthResponse:
         try:
+            logger.info(f"Received Google authentication request with token: {token_request.access_token[:20] if token_request.access_token else 'None'}...")
+
             # Get user info from Google
             google_user = await AuthService._get_google_user_info(token_request.access_token)
             email = google_user.get('email')
-            
+
             # Validate email domain
             if not AuthService.validate_email_domain(email):
                 return AuthResponse(
                     success=False,
                     message="Please use a valid @gmail.com or @uwaterloo.ca email address"
                 )
-            
+
             # Check if user exists
             existing_user = await AuthService._find_existing_user(email)
-            
+
             if existing_user:
                 return await AuthService._handle_existing_user(existing_user, google_user, token_request)
             else:
-                return await AuthService._create_new_google_user(google_user, token_request.account_type, token_request.access_token)
-                    
+                return await AuthService._create_new_google_user(google_user, token_request.access_token)
+
         except Exception as e:
             logger.error(f"Authentication error: {e}")
             return AuthResponse(
@@ -139,7 +141,7 @@ class AuthService:
             )
     
     @staticmethod
-    async def _create_new_google_user(google_user: Dict[str, Any], account_type: str, access_token: str) -> AuthResponse:
+    async def _create_new_google_user(google_user: Dict[str, Any], access_token: str) -> AuthResponse:
         try:
             email = google_user.get('email')
             name = google_user.get('name', email.split('@')[0])
@@ -165,14 +167,14 @@ class AuthService:
             logger.info(f"Successfully created Supabase Auth user: {auth_response.user.id} ({email})")
             
             # Create user profile
-            await AuthService._create_user_profile(auth_response.user, google_user, account_type)
+            await AuthService._create_user_profile(auth_response.user, google_user)
             
             auth_user = AuthUser(
                 id=auth_response.user.id,
                 email=email,
                 username=name,
                 full_name=name,
-                role=account_type if account_type in ["student", "instructor"] else "student",
+                role="user",
                 courses=[],
                 email_confirmed=True,
                 created_at=auth_response.user.created_at
@@ -194,7 +196,7 @@ class AuthService:
             )
     
     @staticmethod
-    async def _create_user_profile(supabase_user, google_user: Dict[str, Any], account_type: str):
+    async def _create_user_profile(supabase_user, google_user: Dict[str, Any]):
         try:
             email = google_user.get('email')
             profile_data = {
@@ -202,7 +204,7 @@ class AuthService:
                 "email": email,
                 "username": google_user.get('name', email.split('@')[0]),
                 "full_name": google_user.get('name'),
-                "role": account_type if account_type in ["student", "instructor"] else "student",
+                "role": "user",
                 "courses": [],
                 "account_type": "active"
             }

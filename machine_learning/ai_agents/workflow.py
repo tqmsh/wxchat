@@ -16,7 +16,6 @@ from ai_agents.agents.strategist_agent import StrategistAgent
 from ai_agents.agents.critic_agent import CriticAgent
 from ai_agents.agents.moderator_agent import ModeratorAgent
 from ai_agents.agents.reporter_agent import ReporterAgent
-from ai_agents.agents.tutor_agent import TutorAgent
 
 
 class MultiAgentWorkflow:
@@ -36,18 +35,17 @@ class MultiAgentWorkflow:
         self.critic_agent = CriticAgent(context)
         self.moderator_agent = ModeratorAgent(context)
         self.reporter_agent = ReporterAgent(context)
-        self.tutor_agent = TutorAgent(context)
-        
+
         # Build the workflow graph
         self.workflow = self._build_workflow()
-        
+
         # Add memory for conversation tracking
         self.memory = MemorySaver()
         self.app = self.workflow.compile(checkpointer=self.memory)
-        
+
         self.logger.info("Multi-Agent Workflow initialized with LangGraph")
         simple_log.info("Multi-Agent Workflow initialized with LangGraph")
-        simple_log.info("WORKFLOW INITIALIZED", {"agents": ["retrieve", "strategist", "critic", "moderator", "reporter", "tutor"]})
+        simple_log.info("WORKFLOW INITIALIZED", {"agents": ["retrieve", "strategist", "critic", "moderator", "reporter"]})
     
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow"""
@@ -61,21 +59,20 @@ class MultiAgentWorkflow:
         workflow.add_node("critic", self.critic_agent)
         workflow.add_node("moderator", self.moderator_agent)
         workflow.add_node("reporter", self.reporter_agent)
-        workflow.add_node("tutor", self.tutor_agent)
-        
+
         # Define the flow
         # Start -> Retrieve
         workflow.set_entry_point("retrieve")
-        
+
         # Retrieve -> Strategist (always after retrieval)
         workflow.add_edge("retrieve", "strategist")
-        
+
         # Strategist -> Critic (always critique after draft)
         workflow.add_edge("strategist", "critic")
-        
+
         # Critic -> Moderator (always moderate after critique)
         workflow.add_edge("critic", "moderator")
-        
+
         # Moderator -> Conditional routing based on decision
         workflow.add_conditional_edges(
             "moderator",
@@ -86,12 +83,9 @@ class MultiAgentWorkflow:
                 "end": END                    # Error case
             }
         )
-        
-        # Reporter -> Tutor (always add tutoring after synthesis)
-        workflow.add_edge("reporter", "tutor")
-        
-        # Tutor -> End
-        workflow.add_edge("tutor", END)
+
+        # Reporter -> END (final synthesis)
+        workflow.add_edge("reporter", END)
         
         return workflow
     
@@ -277,13 +271,7 @@ class MultiAgentWorkflow:
                         answer_length = len(str(state_update["final_answer"]))
                         self.logger.info(f"Synthesized final answer: {answer_length} characters")
                         simple_log.info(f"Synthesized final answer: {answer_length} characters")
-                    
-                    elif node == "tutor" and "tutor_interaction" in state_update:
-                        interaction_type = state_update["tutor_interaction"].get("interaction_type", "unknown")
-                        elements_count = len(state_update["tutor_interaction"].get("elements", []))
-                        self.logger.info(f"Prepared {interaction_type} interaction with {elements_count} elements")
-                        simple_log.info(f"Prepared {interaction_type} interaction with {elements_count} elements")
-                    
+
                     self.logger.info("="*250)
                     simple_log.info("="*250)
                     
@@ -329,12 +317,9 @@ class MultiAgentWorkflow:
         """Format the final response from workflow state"""
         
         final_answer = state.get("final_answer", {})
-        tutor_interaction = state.get("tutor_interaction", {})
-        
         response = {
             "success": True,
             "answer": final_answer,
-            "tutor_interaction": tutor_interaction,
             "metadata": {
                 "debate_rounds": state.get("current_round", 0),
                 "convergence_score": state.get("convergence_score", 0),
@@ -396,8 +381,7 @@ class MultiAgentWorkflow:
                 "strategist": "ready",
                 "critic": "ready",
                 "moderator": "ready",
-                "reporter": "ready",
-                "tutor": "ready"
+                "reporter": "ready"
             },
             "workflow_graph": {
                 "nodes": list(self.workflow.nodes.keys()),
@@ -408,7 +392,6 @@ class MultiAgentWorkflow:
     async def execute_with_content_streaming(
         self,
         query: str,
-        course_id: str,
         session_id: str,
         metadata: Optional[Dict[str, Any]] = None,
         heavy_model: Optional[str] = None,

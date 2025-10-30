@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Literal, List
+from typing import Optional, Literal
 from datetime import datetime
 
 class AuthUser(BaseModel):
@@ -7,15 +7,13 @@ class AuthUser(BaseModel):
     email: EmailStr
     username: str
     full_name: Optional[str] = None
-    role: Literal["student", "instructor", "admin"] = "student"
-    courses: List[str] = []
+    role: Literal["user"] = "user"
     email_confirmed: bool = False
     created_at: Optional[datetime] = None
     last_sign_in: Optional[datetime] = None
 
 class GoogleTokenRequest(BaseModel):
     access_token: str
-    account_type: Literal["student", "instructor"] = "student"
 
 class AuthResponse(BaseModel):
     success: bool
@@ -26,7 +24,7 @@ class AuthResponse(BaseModel):
 
 class RoleUpdateRequest(BaseModel):
     user_id: str
-    new_role: Literal["student", "instructor", "admin"]
+    new_role: Literal["user", "admin"]
 
 class AccountStatusRequest(BaseModel):
     user_id: str

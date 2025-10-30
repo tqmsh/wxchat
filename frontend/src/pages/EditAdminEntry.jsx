@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DragDropZone } from "@/components/ui/drag-drop-zone";
 import { FileList } from "@/components/ui/file-list";
-import { CourseSelector } from "@/components/ui/course-selector";
 import AdminSidebar from "@/components/AdminSidebar";
 
 export default function EditAdminEntry() {
@@ -20,7 +19,6 @@ export default function EditAdminEntry() {
     prompt: "",
   });
   const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState("");
 
   // GET ENTRY DATA HERE
   useEffect(() => {
@@ -50,15 +48,9 @@ export default function EditAdminEntry() {
   };
 
   const handleFilesDrop = async (files) => {
-    if (!selectedCourseId) {
-      alert("Please select a course first");
-      return;
-    }
-
     try {
       // Upload files to RAG system via backend
       const uploadFormData = new FormData();
-      uploadFormData.append("course_id", selectedCourseId);
       uploadFormData.append("user_id", "admin");
 
       for (const file of files) {
@@ -176,11 +168,6 @@ export default function EditAdminEntry() {
                   rows={3}
                 />
               </div>
-
-              <CourseSelector
-                value={selectedCourseId}
-                onChange={setSelectedCourseId}
-              />
 
               <div className="space-y-4">
                 <Label>Documents</Label>

@@ -12,7 +12,6 @@ class ConversationBase(BaseModel):
 class ConversationCreate(BaseModel):
     user_id: str
     title: Optional[str] = None
-    course_id: Optional[str] = None
 
 class ConversationUpdate(BaseModel):
     conversation_id: str
@@ -24,7 +23,6 @@ class ChatRequest(BaseModel):
     file_context: Optional[str] = None
     model: Optional[str] = "gemini-2.5-flash"
     mode: Optional[str] = "daily"
-    course_id: Optional[str] = None
     rag_model: Optional[str] = None
     heavy_model: Optional[str] = None
     use_agents: bool = False
@@ -47,10 +45,9 @@ class MessageBase(BaseModel):
 
 class MessageCreate(BaseModel):
     conversation_id: str
-    user_id: str    
+    user_id: str
     sender: Literal["user", "assistant"]
     content: str
-    course_id: Optional[str] = None
     model: Optional[str] = None
 
 class MessageUpdate(BaseModel):
